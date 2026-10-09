@@ -1,6 +1,6 @@
 # rjs
 
-A small, fast downloader for **TikTok, Instagram, Facebook and X**. One file, about 6 MB, no Python, no yt-dlp.
+A small, fast downloader for **TikTok, Instagram, Facebook and X**. One file, about 4 MB, no Python, no yt-dlp.
 
 ```bash
 rjs "https://www.tiktok.com/@scout2015/video/6718335390845095173"

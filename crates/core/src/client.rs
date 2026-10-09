@@ -26,6 +26,8 @@ pub(crate) struct Page {
 
 impl Client {
     pub fn new() -> Result<Self> {
+        // Fails only when a provider is already installed, which is just as good.
+        let _ = rustls::crypto::ring::default_provider().install_default();
         let jar = Arc::new(Jar::default());
         let mut headers = HeaderMap::new();
         headers.insert(ACCEPT_LANGUAGE, HeaderValue::from_static("en-US,en;q=0.9"));

@@ -11,8 +11,9 @@ base64 = "0.23"
 cbc = "0.2.1"
 futures-util = "0.3.34"
 pbkdf2 = "0.13.0"
-regex = "1.13.1"
-reqwest = { version = "0.13.5", default-features = false, features = ["rustls", "cookies", "json", "stream", "gzip", "brotli", "http2", "charset", "form", "query"] }
+regex = { package = "regex-lite", version = "0.1" }
+reqwest = { version = "0.13.5", default-features = false, features = ["rustls-no-provider", "cookies", "json", "stream", "gzip", "form", "query"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 rusqlite = { version = "0.40.2", features = ["bundled"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = { version = "1.0.151", features = ["preserve_order"] }

@@ -8,7 +8,7 @@ edition = "2024"
 license = "MIT"
 
 [profile.release]
-opt-level = "s"
+opt-level = "z"
 lto = true
 codegen-units = 1
 strip = true
