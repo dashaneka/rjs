@@ -1,0 +1,17 @@
+[package]
+name = "rjs"
+description = "Download videos from TikTok, Instagram, Facebook and X"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "rjs"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4.6.7", features = ["derive"] }
+console = "0.16"
+indicatif = "0.18.6"
+rjs-core = { version = "0.1.0", path = "../core" }
+tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "time"] }
