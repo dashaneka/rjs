@@ -63,7 +63,7 @@ pub(super) async fn profile(client: &Client, url: &Url) -> Result<Profile> {
         follower_count: number(detail, "/userInfo/stats/followerCount"),
         private: user["privateAccount"] == true,
         avatar: avatar_media(user),
-        pager: Pager::new(sec_uid, username.clone()),
+        pager: super::Pager::TikTok(Pager::new(sec_uid, username.clone())),
         username,
     })
 }

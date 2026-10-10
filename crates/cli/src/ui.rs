@@ -24,6 +24,7 @@ fn badge(platform: Platform) -> StyledObject<&'static str> {
         Platform::TikTok => s.magenta(),
         Platform::Instagram => s.yellow(),
         Platform::Facebook => s.blue(),
+        Platform::Pinterest => s.red(),
         Platform::Pornhub | Platform::XHamster => s.yellow(),
         Platform::YouPorn | Platform::SpankBang => s.magenta(),
         Platform::RedTube | Platform::XVideos | Platform::Xnxx => s.red(),
@@ -40,7 +41,9 @@ pub fn post_header(first: &Media, count: usize) {
     if let Some(author) = &first.author {
         // Only these sites give usernames; the rest give display names.
         let author = match first.platform {
-            Platform::X | Platform::TikTok | Platform::Instagram => format!("@{author}"),
+            Platform::X | Platform::TikTok | Platform::Instagram | Platform::Pinterest => {
+                format!("@{author}")
+            }
             _ => author.clone(),
         };
         line += &format!(" {} {}", dot(), style(author).bold());

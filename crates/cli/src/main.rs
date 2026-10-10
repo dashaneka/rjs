@@ -7,13 +7,13 @@ use std::time::{Duration, Instant};
 use clap::Parser;
 use rjs_core::{Client, DownloadOptions, Media, Result, Selection};
 
-/// Download videos and pictures from TikTok, Instagram, Facebook and X.
+/// Download videos and pictures from TikTok, Instagram, Facebook, X and Pinterest.
 ///
 /// Also downloads videos from Pornhub, YouPorn, RedTube, Eporner, XVideos,
 /// XNXX, xHamster and SpankBang.
 ///
-/// Give a post link to download it, or a TikTok profile link to download the
-/// profile picture and every post into a folder named after the account.
+/// Give a post link to download it, or a TikTok profile or Pinterest board or
+/// profile link to download the profile picture and every post into a folder.
 #[derive(Parser)]
 #[command(version)]
 struct Args {
@@ -33,7 +33,7 @@ struct Args {
     #[arg(short, long)]
     format: Option<String>,
 
-    /// Download only the profile picture (TikTok profile or post links).
+    /// Download only the profile picture (TikTok or Pinterest links).
     #[arg(short, long)]
     avatar: bool,
 
@@ -190,7 +190,7 @@ impl Session {
                 let label = format!("{} {posts}", ui::item_label(media, 1, 1));
                 self.save(media, &label, &dir).await;
             }
-            // Be gentle with TikTok between pages.
+            // Be gentle with the site between pages.
             tokio::time::sleep(Duration::from_millis(600)).await;
         }
 

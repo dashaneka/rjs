@@ -12,6 +12,7 @@ pub enum Platform {
     TikTok,
     Instagram,
     Facebook,
+    Pinterest,
     Pornhub,
     YouPorn,
     RedTube,
@@ -23,11 +24,39 @@ pub enum Platform {
 }
 
 /// Domains of each site, including mirrors that serve the same pages.
-const DOMAINS: [(Platform, &[&str]); 12] = [
+const DOMAINS: [(Platform, &[&str]); 13] = [
     (Platform::X, &["x.com", "twitter.com"]),
     (Platform::TikTok, &["tiktok.com"]),
     (Platform::Instagram, &["instagram.com", "instagr.am"]),
     (Platform::Facebook, &["facebook.com", "fb.watch", "fb.com"]),
+    (
+        Platform::Pinterest,
+        &[
+            "pinterest.com",
+            "pin.it",
+            "pinterest.at",
+            "pinterest.ca",
+            "pinterest.ch",
+            "pinterest.cl",
+            "pinterest.co.kr",
+            "pinterest.co.uk",
+            "pinterest.com.au",
+            "pinterest.com.mx",
+            "pinterest.de",
+            "pinterest.dk",
+            "pinterest.es",
+            "pinterest.fr",
+            "pinterest.ie",
+            "pinterest.it",
+            "pinterest.jp",
+            "pinterest.nl",
+            "pinterest.nz",
+            "pinterest.ph",
+            "pinterest.pt",
+            "pinterest.ru",
+            "pinterest.se",
+        ],
+    ),
     (
         Platform::Pornhub,
         &["pornhub.com", "pornhub.org", "pornhub.net"],
@@ -61,6 +90,7 @@ impl Platform {
             Self::TikTok => "TikTok",
             Self::Instagram => "Instagram",
             Self::Facebook => "Facebook",
+            Self::Pinterest => "Pinterest",
             Self::Pornhub => "Pornhub",
             Self::YouPorn => "YouPorn",
             Self::RedTube => "RedTube",
@@ -117,6 +147,11 @@ mod tests {
     #[test]
     fn detects_platforms() {
         assert_eq!(detect("https://x.com/a/status/1"), Some(Platform::X));
+        assert_eq!(detect("https://pin.it/abc"), Some(Platform::Pinterest));
+        assert_eq!(
+            detect("https://in.pinterest.com/pin/1/"),
+            Some(Platform::Pinterest)
+        );
         assert_eq!(detect("mobile.twitter.com/a/status/1"), Some(Platform::X));
         assert_eq!(
             detect("https://vm.tiktok.com/ZMabc/"),

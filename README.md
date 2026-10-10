@@ -1,6 +1,6 @@
 # rjs
 
-A small, fast downloader for **TikTok, Instagram, Facebook and X**. One file, about 4 MB, no Python, no yt-dlp.
+A small, fast downloader for **TikTok, Instagram, Facebook, X and Pinterest**. One file, about 4 MB, no Python, no yt-dlp.
 
 ```bash
 rjs "https://www.tiktok.com/@scout2015/video/6718335390845095173"
@@ -12,6 +12,7 @@ rjs "https://www.tiktok.com/@scout2015/video/6718335390845095173"
 - **TikTok**: videos, photo slideshows, profile pictures, whole profiles
 - **Instagram**: posts, reels, carousels (stories and highlights need your login)
 - **Facebook**: videos and reels
+- **Pinterest**: pictures, GIFs, videos, carousels, idea pins, whole boards and profiles, `pin.it` links
 - **Adult sites (18+)**: Pornhub, YouPorn, RedTube, Eporner, xHamster, XVideos, XNXX, SpankBang
 
 It downloads in parallel, picks up where it left off if it stops, and skips files you already have.
@@ -44,6 +45,7 @@ rjs -f 720 "<link>"                   # pick a quality
 rjs -o ~/Videos "<link>"              # save somewhere else
 rjs -l 20 "https://www.tiktok.com/@name"   # last 20 posts of a profile
 rjs -a "https://www.tiktok.com/@name"      # just the profile picture
+rjs "https://www.pinterest.com/name/board/" # a whole Pinterest board
 rjs -b chrome "<instagram story link>"     # use your browser login
 ```
 

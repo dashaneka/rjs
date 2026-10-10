@@ -1,4 +1,4 @@
-//! Find and download videos and pictures from TikTok, Instagram, Facebook, X
+//! Find and download videos and pictures from TikTok, Instagram, Facebook, X, Pinterest
 //! and a handful of adult video sites.
 //!
 //! ```no_run

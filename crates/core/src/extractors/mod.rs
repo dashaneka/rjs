@@ -1,6 +1,7 @@
 mod eporner;
 mod facebook;
 mod instagram;
+mod pinterest;
 mod pornhub;
 mod spankbang;
 mod tiktok;
@@ -15,8 +16,6 @@ use serde_json::Value;
 
 use reqwest::Url;
 
-pub(crate) use tiktok::Pager;
-
 use crate::error::fail;
 use crate::platform::parse_url;
 use crate::{Client, Error, Format, Media, Platform, Profile, Result};
@@ -28,16 +27,37 @@ fn resolve(input: &str) -> Result<(Url, Platform)> {
     Ok((url, platform))
 }
 
+/// Walks through the posts of a profile (or Pinterest board) a page at a time.
+pub(crate) enum Pager {
+    TikTok(tiktok::Pager),
+    Pinterest(pinterest::Pager),
+}
+
+impl Pager {
+    /// The next batch of posts, possibly empty; `None` once there are no more.
+    pub(crate) async fn next(&mut self, client: &Client) -> Result<Option<Vec<Media>>> {
+        match self {
+            Self::TikTok(pager) => pager.next(client).await,
+            Self::Pinterest(pager) => pager.next(client).await,
+        }
+    }
+}
+
 pub(crate) fn is_profile(input: &str) -> bool {
-    matches!(resolve(input), Ok((url, Platform::TikTok)) if tiktok::is_profile(&url))
+    match resolve(input) {
+        Ok((url, Platform::TikTok)) => tiktok::is_profile(&url),
+        Ok((url, Platform::Pinterest)) => pinterest::is_profile(&url),
+        _ => false,
+    }
 }
 
 pub(crate) async fn profile(client: &Client, input: &str) -> Result<Profile> {
     match resolve(input)? {
         (url, Platform::TikTok) => tiktok::profile(client, &url).await,
+        (url, Platform::Pinterest) => pinterest::profile(client, &url).await,
         (_, platform) => Err(fail(
             platform,
-            "whole profiles can only be downloaded from TikTok for now",
+            "whole profiles can only be downloaded from TikTok and Pinterest for now",
         )),
     }
 }
@@ -45,9 +65,10 @@ pub(crate) async fn profile(client: &Client, input: &str) -> Result<Profile> {
 pub(crate) async fn avatar(client: &Client, input: &str) -> Result<Media> {
     match resolve(input)? {
         (url, Platform::TikTok) => tiktok::avatar(client, &url).await,
+        (url, Platform::Pinterest) => pinterest::avatar(client, &url).await,
         (_, platform) => Err(fail(
             platform,
-            "profile pictures can only be downloaded from TikTok for now",
+            "profile pictures can only be downloaded from TikTok and Pinterest for now",
         )),
     }
 }
@@ -59,6 +80,7 @@ pub(crate) async fn extract(client: &Client, input: &str) -> Result<Vec<Media>> 
         Platform::TikTok => tiktok::extract(client, &url).await?,
         Platform::Instagram => instagram::extract(client, &url).await?,
         Platform::Facebook => facebook::extract(client, &url).await?,
+        Platform::Pinterest => pinterest::extract(client, &url).await?,
         Platform::Pornhub | Platform::YouPorn | Platform::RedTube => {
             pornhub::extract(client, &url, platform).await?
         }
