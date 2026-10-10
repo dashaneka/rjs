@@ -12,7 +12,47 @@ pub enum Platform {
     TikTok,
     Instagram,
     Facebook,
+    Pornhub,
+    YouPorn,
+    RedTube,
+    Eporner,
+    XVideos,
+    Xnxx,
+    XHamster,
+    SpankBang,
 }
+
+/// Domains of each site, including mirrors that serve the same pages.
+const DOMAINS: [(Platform, &[&str]); 12] = [
+    (Platform::X, &["x.com", "twitter.com"]),
+    (Platform::TikTok, &["tiktok.com"]),
+    (Platform::Instagram, &["instagram.com", "instagr.am"]),
+    (Platform::Facebook, &["facebook.com", "fb.watch", "fb.com"]),
+    (
+        Platform::Pornhub,
+        &["pornhub.com", "pornhub.org", "pornhub.net"],
+    ),
+    (Platform::YouPorn, &["youporn.com"]),
+    (Platform::RedTube, &["redtube.com"]),
+    (Platform::Eporner, &["eporner.com"]),
+    (
+        Platform::XVideos,
+        &["xvideos.com", "xvideos2.com", "xvideos.es"],
+    ),
+    (Platform::Xnxx, &["xnxx.com"]),
+    (
+        Platform::XHamster,
+        &[
+            "xhamster.com",
+            "xhamster.desi",
+            "xhamster2.com",
+            "xhamster3.com",
+            "xhday.com",
+            "xhvid.com",
+        ],
+    ),
+    (Platform::SpankBang, &["spankbang.com"]),
+];
 
 impl Platform {
     pub fn name(self) -> &'static str {
@@ -21,24 +61,31 @@ impl Platform {
             Self::TikTok => "TikTok",
             Self::Instagram => "Instagram",
             Self::Facebook => "Facebook",
+            Self::Pornhub => "Pornhub",
+            Self::YouPorn => "YouPorn",
+            Self::RedTube => "RedTube",
+            Self::Eporner => "Eporner",
+            Self::XVideos => "XVideos",
+            Self::Xnxx => "XNXX",
+            Self::XHamster => "xHamster",
+            Self::SpankBang => "SpankBang",
         }
     }
 
     pub fn detect(url: &Url) -> Option<Self> {
         let host = url.host_str()?.to_ascii_lowercase();
-        let on = |domain: &str| host == domain || host.ends_with(&format!(".{domain}"));
+        let on = |domain: &&str| host == *domain || host.ends_with(&format!(".{domain}"));
+        DOMAINS
+            .iter()
+            .find(|(_, domains)| domains.iter().any(on))
+            .map(|(platform, _)| *platform)
+    }
 
-        if on("x.com") || on("twitter.com") {
-            Some(Self::X)
-        } else if on("tiktok.com") {
-            Some(Self::TikTok)
-        } else if on("instagram.com") || on("instagr.am") {
-            Some(Self::Instagram)
-        } else if on("facebook.com") || on("fb.watch") || on("fb.com") {
-            Some(Self::Facebook)
-        } else {
-            None
-        }
+    /// Every domain rjs downloads from, for picking out login cookies.
+    pub(crate) fn all_domains() -> impl Iterator<Item = &'static str> {
+        DOMAINS
+            .iter()
+            .flat_map(|(_, domains)| domains.iter().copied())
     }
 }
 
@@ -83,6 +130,18 @@ mod tests {
         assert_eq!(
             detect("https://m.facebook.com/watch/?v=1"),
             Some(Platform::Facebook)
+        );
+        assert_eq!(
+            detect("https://www.pornhub.com/view_video.php?viewkey=a"),
+            Some(Platform::Pornhub)
+        );
+        assert_eq!(
+            detect("https://de.xhamster.com/videos/a-xh1"),
+            Some(Platform::XHamster)
+        );
+        assert_eq!(
+            detect("https://www.xnxx.com/video-a/b"),
+            Some(Platform::Xnxx)
         );
         assert_eq!(detect("https://notx.com/a/status/1"), None);
         assert_eq!(detect("https://youtube.com/watch?v=1"), None);

@@ -1,8 +1,16 @@
+mod eporner;
 mod facebook;
 mod instagram;
+mod pornhub;
+mod spankbang;
 mod tiktok;
 mod x;
+mod xhamster;
+mod xvideos;
 
+use std::sync::LazyLock;
+
+use regex::Regex;
 use serde_json::Value;
 
 use reqwest::Url;
@@ -11,7 +19,7 @@ pub(crate) use tiktok::Pager;
 
 use crate::error::fail;
 use crate::platform::parse_url;
-use crate::{Client, Error, Media, Platform, Profile, Result};
+use crate::{Client, Error, Format, Media, Platform, Profile, Result};
 
 fn resolve(input: &str) -> Result<(Url, Platform)> {
     let url = parse_url(input)?;
@@ -51,6 +59,13 @@ pub(crate) async fn extract(client: &Client, input: &str) -> Result<Vec<Media>> 
         Platform::TikTok => tiktok::extract(client, &url).await?,
         Platform::Instagram => instagram::extract(client, &url).await?,
         Platform::Facebook => facebook::extract(client, &url).await?,
+        Platform::Pornhub | Platform::YouPorn | Platform::RedTube => {
+            pornhub::extract(client, &url, platform).await?
+        }
+        Platform::Eporner => eporner::extract(client, &url).await?,
+        Platform::XVideos | Platform::Xnxx => xvideos::extract(client, &url, platform).await?,
+        Platform::XHamster => xhamster::extract(client, &url).await?,
+        Platform::SpankBang => spankbang::extract(client, &url).await?,
     };
     if media.is_empty() {
         return Err(fail(platform, "no videos or pictures found in this post"));
@@ -96,4 +111,70 @@ fn segment_after<'a>(url: &'a reqwest::Url, after: &[&str]) -> Option<&'a str> {
     let mut segments = url.path_segments()?;
     segments.find(|s| after.contains(s))?;
     segments.next().filter(|s| !s.is_empty())
+}
+
+/// The `content` of a `<meta property="…">` (or `name="…"`) tag, decoded.
+fn meta(html: &str, property: &str) -> Option<String> {
+    let name = regex::escape(property);
+    let patterns = [
+        format!(r#"<meta[^>]+(?:property|name)=["']{name}["'][^>]*\bcontent=["']([^"']*)"#),
+        format!(r#"<meta[^>]+\bcontent=["']([^"']*)["'][^>]*(?:property|name)=["']{name}["']"#),
+    ];
+    patterns.iter().find_map(|p| {
+        let found = Regex::new(p)
+            .ok()?
+            .captures(html)?
+            .get(1)?
+            .as_str()
+            .trim()
+            .to_owned();
+        Some(unescape_html(&found)).filter(|s| !s.is_empty())
+    })
+}
+
+static ENTITY: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"&(#x[0-9a-fA-F]+|#[0-9]+|[a-z]+);").unwrap());
+
+fn unescape_html(s: &str) -> String {
+    ENTITY
+        .replace_all(s, |c: &regex::Captures| {
+            let name = &c[1];
+            let decoded = if let Some(hex) = name.strip_prefix("#x") {
+                u32::from_str_radix(hex, 16).ok().and_then(char::from_u32)
+            } else if let Some(dec) = name.strip_prefix('#') {
+                dec.parse().ok().and_then(char::from_u32)
+            } else {
+                match name {
+                    "amp" => Some('&'),
+                    "quot" => Some('"'),
+                    "apos" => Some('\''),
+                    "lt" => Some('<'),
+                    "gt" => Some('>'),
+                    _ => None,
+                }
+            };
+            decoded.map_or_else(|| c[0].to_owned(), String::from)
+        })
+        .into_owned()
+}
+
+/// Adds a `Referer` header, which these sites' file servers expect.
+fn with_referer(mut formats: Vec<Format>, referer: &str) -> Vec<Format> {
+    for f in &mut formats {
+        f.headers.push(("Referer".into(), referer.into()));
+    }
+    formats
+}
+
+/// Downloads JSON, sending `referer`.
+async fn json(client: &Client, url: &str, referer: &str) -> Result<Value> {
+    Ok(client
+        .http
+        .get(url)
+        .header(reqwest::header::REFERER, referer)
+        .send()
+        .await?
+        .error_for_status()?
+        .json()
+        .await?)
 }

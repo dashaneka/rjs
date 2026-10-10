@@ -17,20 +17,10 @@ pub struct Cookie {
     pub value: String,
 }
 
-const SITES: [&str; 6] = [
-    "instagram.com",
-    "tiktok.com",
-    "x.com",
-    "twitter.com",
-    "facebook.com",
-    "fb.watch",
-];
-
 pub(crate) fn for_supported_site(domain: &str) -> bool {
     let domain = domain.trim_start_matches('.');
-    SITES
-        .iter()
-        .any(|site| domain == *site || domain.ends_with(&format!(".{site}")))
+    crate::Platform::all_domains()
+        .any(|site| domain == site || domain.ends_with(&format!(".{site}")))
 }
 
 fn fail(message: impl Into<String>) -> Error {

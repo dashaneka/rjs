@@ -9,6 +9,9 @@ use rjs_core::{Client, DownloadOptions, Media, Result, Selection};
 
 /// Download videos and pictures from TikTok, Instagram, Facebook and X.
 ///
+/// Also downloads videos from Pornhub, YouPorn, RedTube, Eporner, XVideos,
+/// XNXX, xHamster and SpankBang.
+///
 /// Give a post link to download it, or a TikTok profile link to download the
 /// profile picture and every post into a folder named after the account.
 #[derive(Parser)]

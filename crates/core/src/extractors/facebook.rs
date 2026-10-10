@@ -6,7 +6,7 @@ use regex::Regex;
 use reqwest::Url;
 use serde_json::Value;
 
-use super::segment_after;
+use super::{segment_after, unescape_html};
 use crate::error::fail;
 use crate::{Client, Format, Media, MediaKind, Platform, Result};
 
@@ -131,32 +131,6 @@ fn split_title(full: &str) -> (Option<String>, Option<String>) {
     let author = author.filter(|a| *a != "Facebook").map(str::to_owned);
     let title = Some(title).filter(|t| !t.is_empty() && t != "Facebook");
     (title, author)
-}
-
-static ENTITY: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"&(#x[0-9a-fA-F]+|#[0-9]+|[a-z]+);").unwrap());
-
-fn unescape_html(s: &str) -> String {
-    ENTITY
-        .replace_all(s, |c: &regex::Captures| {
-            let name = &c[1];
-            let decoded = if let Some(hex) = name.strip_prefix("#x") {
-                u32::from_str_radix(hex, 16).ok().and_then(char::from_u32)
-            } else if let Some(dec) = name.strip_prefix('#') {
-                dec.parse().ok().and_then(char::from_u32)
-            } else {
-                match name {
-                    "amp" => Some('&'),
-                    "quot" => Some('"'),
-                    "apos" => Some('\''),
-                    "lt" => Some('<'),
-                    "gt" => Some('>'),
-                    _ => None,
-                }
-            };
-            decoded.map_or_else(|| c[0].to_owned(), String::from)
-        })
-        .into_owned()
 }
 
 #[cfg(test)]

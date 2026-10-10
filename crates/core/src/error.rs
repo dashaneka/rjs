@@ -19,6 +19,10 @@ pub enum Error {
     #[error("ffmpeg: {0}")]
     Ffmpeg(String),
 
+    /// A problem with a video served in pieces (HLS).
+    #[error("{0}")]
+    Stream(String),
+
     #[error("cookies: {0}")]
     Cookies(String),
 }

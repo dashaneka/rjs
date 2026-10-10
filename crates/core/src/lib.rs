@@ -1,4 +1,5 @@
-//! Find and download videos and pictures from TikTok, Instagram, Facebook and X.
+//! Find and download videos and pictures from TikTok, Instagram, Facebook, X
+//! and a handful of adult video sites.
 //!
 //! ```no_run
 //! # async fn run() -> rjs_core::Result<()> {
@@ -24,7 +25,7 @@ pub use client::Client;
 pub use cookies::Cookie;
 pub use download::{DownloadOptions, NoProgress, Progress, Saved, download_media};
 pub use error::{Error, Result};
-pub use media::{Format, Media, MediaKind, Selection};
+pub use media::{Format, Media, MediaKind, Protocol, Selection};
 pub use platform::Platform;
 pub use profile::Profile;
 

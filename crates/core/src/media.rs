@@ -49,9 +49,20 @@ pub struct Format {
     pub has_audio: bool,
     /// Video codec as reported by the site, when it says.
     pub codec: Option<String>,
+    pub protocol: Protocol,
     /// Extra request headers the site requires when downloading this format.
     #[serde(skip)]
     pub headers: Vec<(String, String)>,
+}
+
+/// How a format is fetched.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Protocol {
+    /// One file.
+    Http,
+    /// An HLS playlist of short pieces (`.m3u8`).
+    Hls,
 }
 
 /// What to download for a `Media`.
@@ -79,7 +90,16 @@ impl Format {
             has_video: true,
             has_audio: true,
             codec: None,
+            protocol: Protocol::Http,
             headers: Vec::new(),
+        }
+    }
+
+    /// An HLS playlist for one quality, with video and audio.
+    pub(crate) fn hls(id: impl Into<String>, url: impl Into<String>) -> Self {
+        Self {
+            protocol: Protocol::Hls,
+            ..Self::mp4(id, url)
         }
     }
 
@@ -117,17 +137,27 @@ impl Format {
     }
 
     fn short_side(&self) -> Option<u32> {
-        Some(self.width?.min(self.height?))
+        match (self.width, self.height) {
+            (Some(w), Some(h)) => Some(w.min(h)),
+            (_, h) => h,
+        }
     }
 
+    /// Some sites only say the height, so a lone side still ranks qualities.
     fn pixels(&self) -> u64 {
-        u64::from(self.width.unwrap_or(0)) * u64::from(self.height.unwrap_or(0))
+        match (self.width, self.height) {
+            (Some(w), Some(h)) => u64::from(w) * u64::from(h),
+            (Some(side), None) | (None, Some(side)) => u64::from(side) * u64::from(side),
+            (None, None) => 0,
+        }
     }
 
-    fn rank(&self) -> (bool, u64, u64) {
+    /// At the same picture size, a single file beats HLS because it can resume.
+    fn rank(&self) -> (bool, u64, bool, u64) {
         (
             self.plays_everywhere(),
             self.pixels(),
+            self.protocol == Protocol::Http,
             self.bitrate.unwrap_or(0),
         )
     }

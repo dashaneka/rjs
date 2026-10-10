@@ -24,6 +24,10 @@ fn badge(platform: Platform) -> StyledObject<&'static str> {
         Platform::TikTok => s.magenta(),
         Platform::Instagram => s.yellow(),
         Platform::Facebook => s.blue(),
+        Platform::Pornhub | Platform::XHamster => s.yellow(),
+        Platform::YouPorn | Platform::SpankBang => s.magenta(),
+        Platform::RedTube | Platform::XVideos | Platform::Xnxx => s.red(),
+        Platform::Eporner => s.cyan(),
     }
 }
 
@@ -34,10 +38,10 @@ fn dot() -> StyledObject<&'static str> {
 pub fn post_header(first: &Media, count: usize) {
     let mut line = format!(" {}", badge(first.platform));
     if let Some(author) = &first.author {
-        // Facebook gives page names rather than usernames.
+        // Only these sites give usernames; the rest give display names.
         let author = match first.platform {
-            Platform::Facebook => author.clone(),
-            _ => format!("@{author}"),
+            Platform::X | Platform::TikTok | Platform::Instagram => format!("@{author}"),
+            _ => author.clone(),
         };
         line += &format!(" {} {}", dot(), style(author).bold());
     }
@@ -148,7 +152,7 @@ pub fn note(text: &str) {
 fn message(error: &Error) -> String {
     match error {
         Error::Extract { message, .. } | Error::Cookies(message) => capitalize(message),
-        Error::Unsupported(_) => "Not a supported site (TikTok, Instagram, Facebook or X)".into(),
+        Error::Unsupported(_) => "Not a supported site (run `rjs --help` for the list)".into(),
         other => capitalize(&other.to_string()),
     }
 }

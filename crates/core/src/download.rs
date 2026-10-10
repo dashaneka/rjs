@@ -7,7 +7,9 @@ use reqwest::header::{ACCEPT_ENCODING, CONTENT_RANGE, HeaderMap, HeaderName, Hea
 use tokio::fs::{self, File, OpenOptions};
 use tokio::io::{AsyncWriteExt, BufWriter};
 
-use crate::{Client, Error, Format, Media, Result, Selection};
+use crate::{Client, Error, Format, Media, Protocol, Result, Selection};
+
+pub(crate) mod hls;
 
 /// Pieces smaller than this aren't worth a separate connection.
 const MIN_PIECE: u64 = 1 << 20;
@@ -63,34 +65,43 @@ pub async fn download_media(
         Selection::Single(format) => &format.ext,
         Selection::Merge { .. } => "mp4",
     }));
-    if options.skip_existing && fs::try_exists(&dest).await? {
-        return Ok(Saved {
-            path: dest,
-            skipped: true,
-        });
+    if options.skip_existing {
+        // HLS downloads end up as `.ts` files when ffmpeg isn't installed.
+        for existing in [dest.clone(), dest.with_extension("ts")] {
+            if fs::try_exists(&existing).await? {
+                return Ok(Saved {
+                    path: existing,
+                    skipped: true,
+                });
+            }
+        }
     }
 
-    match selection {
+    let path = match selection {
         Selection::Single(format) => {
             let label = media.kind.name();
-            download_file(client, format, &dest, label, options, progress).await?;
+            download_file(client, format, &dest, label, options, progress).await?
         }
         Selection::Merge { video, audio } => {
             let video_path = dest.with_extension(format!("video.{}", video.ext));
             let audio_path = dest.with_extension(format!("audio.{}", audio.ext));
-            download_file(client, video, &video_path, "video", options, progress).await?;
-            download_file(client, audio, &audio_path, "audio", options, progress).await?;
+            let video_path =
+                download_file(client, video, &video_path, "video", options, progress).await?;
+            let audio_path =
+                download_file(client, audio, &audio_path, "audio", options, progress).await?;
             merge(&video_path, &audio_path, &dest).await?;
             fs::remove_file(&video_path).await?;
             fs::remove_file(&audio_path).await?;
+            dest
         }
-    }
+    };
     Ok(Saved {
-        path: dest,
+        path,
         skipped: false,
     })
 }
 
+/// Downloads one format and returns where it was saved (normally `dest`).
 async fn download_file(
     client: &Client,
     format: &Format,
@@ -98,7 +109,10 @@ async fn download_file(
     label: &str,
     options: &DownloadOptions,
     progress: &dyn Progress,
-) -> Result<()> {
+) -> Result<PathBuf> {
+    if format.protocol == Protocol::Hls {
+        return hls::download(client, format, dest, label, options, progress).await;
+    }
     let headers = request_headers(format);
 
     let probe = client
@@ -128,10 +142,11 @@ async fn download_file(
                 options,
                 progress,
             )
-            .await
+            .await?;
         }
-        None => download_whole(client, &format.url, &headers, dest, label, progress).await,
+        None => download_whole(client, &format.url, &headers, dest, label, progress).await?,
     }
+    Ok(dest.to_path_buf())
 }
 
 /// Splits the file into ranges, downloads them in parallel into `.part` files,
@@ -296,35 +311,46 @@ async fn download_whole(
 }
 
 async fn merge(video: &Path, audio: &Path, dest: &Path) -> Result<()> {
-    let status = tokio::process::Command::new("ffmpeg")
-        .args(["-y", "-loglevel", "error", "-i"])
-        .arg(video)
-        .arg("-i")
-        .arg(audio)
-        .args(["-c", "copy"])
-        .arg(dest)
-        .status()
-        .await
-        .map_err(|e| match e.kind() {
-            std::io::ErrorKind::NotFound => {
-                Error::Ffmpeg("ffmpeg is not installed; it's needed to join video and audio".into())
-            }
-            _ => Error::Io(e),
-        })?;
-    if status.success() {
+    if run_ffmpeg(&[video, audio], &[], dest, "joining video and audio").await? {
         Ok(())
     } else {
-        Err(Error::Ffmpeg(format!(
-            "joining video and audio failed ({status})"
-        )))
+        Err(Error::Ffmpeg(
+            "ffmpeg is not installed; it's needed to join video and audio".into(),
+        ))
+    }
+}
+
+/// Copies the streams of `inputs` into `dest` without re-encoding. Returns
+/// `false` when ffmpeg isn't installed.
+async fn run_ffmpeg(inputs: &[&Path], extra: &[&str], dest: &Path, what: &str) -> Result<bool> {
+    let mut command = tokio::process::Command::new("ffmpeg");
+    command.args(["-y", "-loglevel", "error"]);
+    for input in inputs {
+        command.arg("-i").arg(input);
+    }
+    let status = command
+        .args(["-c", "copy"])
+        .args(extra)
+        .arg(dest)
+        .status()
+        .await;
+    match status {
+        Ok(status) if status.success() => Ok(true),
+        Ok(status) => Err(Error::Ffmpeg(format!("{what} failed ({status})"))),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(e) => Err(Error::Io(e)),
     }
 }
 
 fn request_headers(format: &Format) -> HeaderMap {
+    header_map(&format.headers)
+}
+
+fn header_map(pairs: &[(String, String)]) -> HeaderMap {
     let mut headers = HeaderMap::new();
     // Compressed responses would break byte ranges.
     headers.insert(ACCEPT_ENCODING, HeaderValue::from_static("identity"));
-    for (name, value) in &format.headers {
+    for (name, value) in pairs {
         if let (Ok(name), Ok(value)) = (
             HeaderName::from_bytes(name.as_bytes()),
             HeaderValue::from_str(value),
