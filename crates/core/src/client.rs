@@ -15,6 +15,8 @@ pub(crate) const BROWSER_UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) A
 #[derive(Clone)]
 pub struct Client {
     pub(crate) http: reqwest::Client,
+    /// Same as `http` but never says which site it's connecting to; see [`hidden_name`].
+    hidden: reqwest::Client,
     jar: Arc<Jar>,
 }
 
@@ -32,20 +34,37 @@ impl Client {
         let mut headers = HeaderMap::new();
         headers.insert(ACCEPT_LANGUAGE, HeaderValue::from_static("en-US,en;q=0.9"));
 
-        let http = reqwest::Client::builder()
-            .user_agent(BROWSER_UA)
-            .default_headers(headers)
-            .cookie_provider(jar.clone())
-            .connect_timeout(Duration::from_secs(15))
-            .read_timeout(Duration::from_secs(30))
+        let builder = || {
+            reqwest::Client::builder()
+                .user_agent(BROWSER_UA)
+                .default_headers(headers.clone())
+                .cookie_provider(jar.clone())
+                .connect_timeout(Duration::from_secs(15))
+                .read_timeout(Duration::from_secs(30))
+        };
+        let http = builder().build()?;
+        let hidden = builder()
+            .tls_backend_preconfigured(hidden_name::tls_config()?)
             .build()?;
-        Ok(Self { http, jar })
+        Ok(Self { http, hidden, jar })
+    }
+
+    /// The client to reach `url` with: sites that networks block by name get one
+    /// that doesn't send it.
+    pub(crate) fn http_for(&self, url: &str) -> &reqwest::Client {
+        let host = Url::parse(url)
+            .ok()
+            .and_then(|u| u.host_str().map(str::to_owned));
+        match host {
+            Some(host) if hidden_name::wanted(&host) => &self.hidden,
+            _ => &self.http,
+        }
     }
 
     /// Loads a web page the way a browser navigating to it would.
     pub(crate) async fn page(&self, url: &str) -> Result<Page> {
         let resp = self
-            .http
+            .http_for(url)
             .get(url)
             .header(
                 ACCEPT,
@@ -106,6 +125,128 @@ impl Client {
             .split("; ")
             .find_map(|pair| pair.strip_prefix(name)?.strip_prefix('='))
             .map(str::to_owned)
+    }
+}
+
+/// Some networks block sites by reading the name a client sends in plain text
+/// at the start of a TLS connection. Leaving it out gets through, and the server
+/// then shows its operator's default certificate instead of the site's.
+mod hidden_name {
+    use std::sync::Arc;
+
+    use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
+    use rustls::pki_types::{CertificateDer, ServerName, UnixTime};
+    use rustls::{CertificateError, DigitallySignedStruct, Error, SignatureScheme};
+    use sha2::{Digest, Sha256};
+
+    /// Sites (and their video servers) that get through only without a name.
+    const HOSTS: &[&str] = &[
+        "xvideos.com",
+        "xvideos2.com",
+        "xvideos.es",
+        "xvideos-cdn.com",
+        "xnxx.com",
+        "xnxx-cdn.com",
+    ];
+
+    /// Default certificates those servers are trusted to show instead.
+    const OPERATOR_NAMES: &[&str] = &["www.cdn77.com"];
+
+    /// SHA-256 of the site's own default certificate (`fallback.wgcz.net`, valid
+    /// until 2036), which is self-signed and so can only be trusted by pinning.
+    const PINNED: &str = "2fdbe574b58920d423681deecbb69e988c23aa6308f23904f34bfcd8037232a2";
+
+    pub(super) fn wanted(host: &str) -> bool {
+        HOSTS
+            .iter()
+            .any(|d| host == *d || host.strip_suffix(d).is_some_and(|s| s.ends_with('.')))
+    }
+
+    pub(super) fn tls_config() -> crate::Result<rustls::ClientConfig> {
+        let provider = Arc::new(rustls::crypto::ring::default_provider());
+        let verifier = rustls_platform_verifier::Verifier::new(provider.clone())?;
+        let mut config = rustls::ClientConfig::builder_with_provider(provider)
+            .with_safe_default_protocol_versions()?
+            .dangerous()
+            .with_custom_certificate_verifier(Arc::new(OperatorNames(verifier)))
+            .with_no_client_auth();
+        config.enable_sni = false;
+        Ok(config)
+    }
+
+    fn is_pinned(cert: &CertificateDer<'_>) -> bool {
+        let digest = Sha256::digest(cert.as_ref());
+        digest
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect::<String>()
+            == PINNED
+    }
+
+    /// Checks certificates as usual, but also accepts the pinned one or one made
+    /// out to a known operator.
+    #[derive(Debug)]
+    struct OperatorNames(rustls_platform_verifier::Verifier);
+
+    impl ServerCertVerifier for OperatorNames {
+        fn verify_server_cert(
+            &self,
+            end_entity: &CertificateDer<'_>,
+            intermediates: &[CertificateDer<'_>],
+            server_name: &ServerName<'_>,
+            ocsp_response: &[u8],
+            now: UnixTime,
+        ) -> Result<ServerCertVerified, Error> {
+            let verify = |name: &ServerName<'_>| {
+                self.0
+                    .verify_server_cert(end_entity, intermediates, name, ocsp_response, now)
+            };
+            match verify(server_name) {
+                Err(Error::InvalidCertificate(_)) if is_pinned(end_entity) => {
+                    Ok(ServerCertVerified::assertion())
+                }
+                Err(Error::InvalidCertificate(
+                    CertificateError::NotValidForName
+                    | CertificateError::NotValidForNameContext { .. },
+                )) => OPERATOR_NAMES
+                    .iter()
+                    .filter_map(|n| ServerName::try_from(*n).ok())
+                    .find_map(|n| verify(&n).ok())
+                    .ok_or(Error::InvalidCertificate(CertificateError::NotValidForName)),
+                result => result,
+            }
+        }
+
+        fn verify_tls12_signature(
+            &self,
+            message: &[u8],
+            cert: &CertificateDer<'_>,
+            dss: &DigitallySignedStruct,
+        ) -> Result<HandshakeSignatureValid, Error> {
+            self.0.verify_tls12_signature(message, cert, dss)
+        }
+
+        fn verify_tls13_signature(
+            &self,
+            message: &[u8],
+            cert: &CertificateDer<'_>,
+            dss: &DigitallySignedStruct,
+        ) -> Result<HandshakeSignatureValid, Error> {
+            self.0.verify_tls13_signature(message, cert, dss)
+        }
+
+        fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
+            self.0.supported_verify_schemes()
+        }
+    }
+
+    #[test]
+    fn hides_only_listed_sites() {
+        assert!(wanted("www.xvideos.com"));
+        assert!(wanted("mp4-cdn77.xvideos-cdn.com"));
+        assert!(wanted("xnxx.com"));
+        assert!(!wanted("notxnxx.com"));
+        assert!(!wanted("www.pornhub.com"));
     }
 }
 

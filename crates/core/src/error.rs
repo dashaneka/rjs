@@ -13,6 +13,9 @@ pub enum Error {
     #[error("network error: {0}")]
     Network(#[from] reqwest::Error),
 
+    #[error("secure connection setup: {0}")]
+    Tls(#[from] rustls::Error),
+
     #[error("file error: {0}")]
     Io(#[from] std::io::Error),
 

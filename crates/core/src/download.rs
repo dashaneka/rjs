@@ -116,7 +116,7 @@ async fn download_file(
     let headers = request_headers(format);
 
     let probe = client
-        .http
+        .http_for(&format.url)
         .get(&format.url)
         .headers(headers.clone())
         .header(RANGE, "bytes=0-0")
@@ -249,7 +249,7 @@ async fn stream_range(
     progress: &dyn Progress,
 ) -> Result<()> {
     let mut resp = client
-        .http
+        .http_for(url)
         .get(url)
         .headers(headers.clone())
         .header(RANGE, format!("bytes={start}-{end}"))
@@ -291,7 +291,7 @@ async fn download_whole(
     progress: &dyn Progress,
 ) -> Result<()> {
     let mut resp = client
-        .http
+        .http_for(url)
         .get(url)
         .headers(headers.clone())
         .send()

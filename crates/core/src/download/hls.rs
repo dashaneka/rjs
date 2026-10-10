@@ -116,7 +116,7 @@ pub(super) async fn download(
 
 async fn fetch_playlist(client: &Client, url: &str, headers: &HeaderMap) -> Result<(Url, String)> {
     let resp = client
-        .http
+        .http_for(url)
         .get(url)
         .headers(headers.clone())
         .send()
@@ -162,7 +162,10 @@ async fn fetch_bytes(
 ) -> Result<Vec<u8>> {
     let mut failures = 0;
     loop {
-        let mut request = client.http.get(url.clone()).headers(headers.clone());
+        let mut request = client
+            .http_for(url.as_str())
+            .get(url.clone())
+            .headers(headers.clone());
         if let Some((start, end)) = range {
             request = request.header(RANGE, format!("bytes={start}-{end}"));
         }

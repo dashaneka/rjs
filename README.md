@@ -59,6 +59,6 @@ The downloader lives in `crates/core` as the `rjs-core` library, so other Rust p
 
 Only download things you have the right to. Sites change often; if something breaks, open an issue with the link.
 
-SpankBang often sits behind a Cloudflare check that rjs can't pass, and some countries block certain adult sites outright.
+If your network blocks XVideos or XNXX, rjs connects without telling the network which site it's visiting, so it usually still works. SpankBang often sits behind a Cloudflare check that rjs can't pass.
 
 MIT license.

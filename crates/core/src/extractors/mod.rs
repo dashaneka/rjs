@@ -169,7 +169,7 @@ fn with_referer(mut formats: Vec<Format>, referer: &str) -> Vec<Format> {
 /// Downloads JSON, sending `referer`.
 async fn json(client: &Client, url: &str, referer: &str) -> Result<Value> {
     Ok(client
-        .http
+        .http_for(url)
         .get(url)
         .header(reqwest::header::REFERER, referer)
         .send()
