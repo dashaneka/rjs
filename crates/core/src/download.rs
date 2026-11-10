@@ -5,7 +5,7 @@ use futures_util::future::try_join_all;
 use reqwest::StatusCode;
 use reqwest::header::{ACCEPT_ENCODING, CONTENT_RANGE, HeaderMap, HeaderName, HeaderValue, RANGE};
 use tokio::fs::{self, File, OpenOptions};
-use tokio::io::{AsyncWriteExt, BufWriter};
+use tokio::io::{AsyncReadExt, AsyncWriteExt, BufWriter};
 
 use crate::{Client, Error, Format, Media, Protocol, Result, Selection};
 
@@ -80,7 +80,7 @@ pub async fn download_media(
     let path = match selection {
         Selection::Single(format) => {
             let label = media.kind.name();
-            download_file(client, format, &dest, label, options, progress).await?
+            download_single(client, media, format, &dest, label, options, progress).await?
         }
         Selection::Merge { video, audio } => {
             let video_path = dest.with_extension(format!("video.{}", video.ext));
@@ -99,6 +99,70 @@ pub async fn download_media(
         path,
         skipped: false,
     })
+}
+
+// TikTok advertises several URLs for the same encoding. Retry those URLs only;
+// never replace a requested quality with a smaller or silent variant.
+async fn download_single(
+    client: &Client,
+    media: &Media,
+    primary: &Format,
+    dest: &Path,
+    label: &str,
+    options: &DownloadOptions,
+    progress: &dyn Progress,
+) -> Result<PathBuf> {
+    let mut candidates = vec![primary];
+    if media.platform == crate::Platform::TikTok {
+        let mut seen = std::collections::HashSet::from([primary.url.as_str()]);
+        candidates.extend(
+            media
+                .formats
+                .iter()
+                .rev()
+                .filter(|f| {
+                    f.width == primary.width
+                        && f.height == primary.height
+                        && f.codec == primary.codec
+                        && f.bitrate == primary.bitrate
+                        && f.has_audio == primary.has_audio
+                        && f.has_video == primary.has_video
+                        && f.protocol == primary.protocol
+                        && f.ext == primary.ext
+                        && seen.insert(f.url.as_str())
+                })
+                .take(3),
+        );
+    }
+    if candidates.len() == 1 {
+        return download_file(client, primary, dest, label, options, progress).await;
+    }
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let mut last_error = None;
+    for candidate in candidates {
+        let id = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let attempt = dest
+            .parent()
+            .unwrap_or(Path::new("."))
+            .join(format!(".rjs-mirror-{}-{id}", std::process::id()));
+        fs::create_dir(&attempt).await?;
+        let target = attempt.join(dest.file_name().expect("media filename"));
+        let result = download_file(client, candidate, &target, label, options, progress).await;
+        match result {
+            Ok(path) => {
+                let final_path = dest.with_extension(path.extension().unwrap_or_default());
+                let moved = fs::rename(&path, &final_path).await;
+                let _ = fs::remove_dir_all(&attempt).await;
+                moved?;
+                return Ok(final_path);
+            }
+            Err(error) => {
+                last_error = Some(error);
+                fs::remove_dir_all(&attempt).await?;
+            }
+        }
+    }
+    Err(last_error.expect("at least one candidate"))
 }
 
 /// Downloads one format and returns where it was saved (normally `dest`).
@@ -123,6 +187,7 @@ async fn download_file(
         .send()
         .await?
         .error_for_status()?;
+    reject_text_response(probe.headers())?;
     let total = if probe.status() == StatusCode::PARTIAL_CONTENT {
         total_from_content_range(probe.headers())
     } else {
@@ -145,6 +210,17 @@ async fn download_file(
             .await?;
         }
         None => download_whole(client, &format.url, &headers, dest, label, progress).await?,
+    }
+    // A successful HTTP status does not guarantee a video/image body.
+    let mut file = File::open(dest).await?;
+    let mut prefix = [0u8; 1024];
+    let n = file.read(&mut prefix).await?;
+    if n == 0 || looks_like_error_page(&prefix[..n]) {
+        drop(file);
+        fs::remove_file(dest).await?;
+        return Err(Error::InvalidMedia(
+            "server returned a page instead of media",
+        ));
     }
     Ok(dest.to_path_buf())
 }
@@ -256,6 +332,7 @@ async fn stream_range(
         .send()
         .await?
         .error_for_status()?;
+    reject_text_response(resp.headers())?;
     if resp.status() != StatusCode::PARTIAL_CONTENT {
         return Err(Error::Io(std::io::Error::other(
             "server ignored the requested byte range",
@@ -297,6 +374,7 @@ async fn download_whole(
         .send()
         .await?
         .error_for_status()?;
+    reject_text_response(resp.headers())?;
     progress.start(label, resp.content_length(), 0);
 
     let part = part_path(dest, "part");
@@ -324,6 +402,7 @@ async fn merge(video: &Path, audio: &Path, dest: &Path) -> Result<()> {
 /// `false` when ffmpeg isn't installed.
 async fn run_ffmpeg(inputs: &[&Path], extra: &[&str], dest: &Path, what: &str) -> Result<bool> {
     let mut command = tokio::process::Command::new("ffmpeg");
+    command.kill_on_drop(true);
     command.args(["-y", "-loglevel", "error"]);
     for input in inputs {
         command.arg("-i").arg(input);
@@ -340,6 +419,47 @@ async fn run_ffmpeg(inputs: &[&Path], extra: &[&str], dest: &Path, what: &str) -
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(false),
         Err(e) => Err(Error::Io(e)),
     }
+}
+
+fn reject_text_response(headers: &HeaderMap) -> Result<()> {
+    let content_type = headers
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("")
+        .split(';')
+        .next()
+        .unwrap_or("")
+        .trim()
+        .to_ascii_lowercase();
+    if matches!(
+        content_type.as_str(),
+        "text/html" | "application/xhtml+xml" | "application/json" | "text/xml" | "application/xml"
+    ) {
+        return Err(Error::InvalidMedia(
+            "server returned a page instead of media",
+        ));
+    }
+    Ok(())
+}
+
+fn looks_like_error_page(bytes: &[u8]) -> bool {
+    let text = String::from_utf8_lossy(bytes);
+    let prefix = text
+        .trim_start_matches('\u{feff}')
+        .trim_start()
+        .to_ascii_lowercase();
+    [
+        "<!doctype",
+        "<html",
+        "<head",
+        "<body",
+        "<?xml",
+        "<error",
+        "{",
+        "[",
+    ]
+    .iter()
+    .any(|start| prefix.starts_with(start))
 }
 
 fn request_headers(format: &Format) -> HeaderMap {
@@ -380,6 +500,44 @@ async fn file_len(path: &Path) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn rejects_error_responses_even_with_success_status() {
+        for mime in [
+            "text/html; charset=utf-8",
+            "application/json",
+            "application/xml",
+            "text/xml",
+        ] {
+            let mut headers = HeaderMap::new();
+            headers.insert(
+                reqwest::header::CONTENT_TYPE,
+                HeaderValue::from_str(mime).unwrap(),
+            );
+            assert!(reject_text_response(&headers).is_err());
+        }
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            reqwest::header::CONTENT_TYPE,
+            HeaderValue::from_static("video/mp4"),
+        );
+        assert!(reject_text_response(&headers).is_ok());
+        assert!(reject_text_response(&HeaderMap::new()).is_ok());
+    }
+
+    #[test]
+    fn detects_html_or_json_mislabeled_as_binary() {
+        for body in [
+            "  <!DOCTYPE html><html>blocked</html>",
+            "\u{feff}<html>error</html>",
+            "<?xml version=1.0?><Error>denied</Error>",
+            "{\"error\":\"denied\"}",
+        ] {
+            assert!(looks_like_error_page(body.as_bytes()));
+        }
+        assert!(!looks_like_error_page(b"\x00\x00\x00\x18ftypisom"));
+        assert!(!looks_like_error_page(b"\xff\xd8\xff\xe0JPEG"));
+    }
 
     #[test]
     fn reads_total_size() {

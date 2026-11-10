@@ -26,7 +26,14 @@ static PAGE_DATA: LazyLock<Regex> = LazyLock::new(|| {
 
 pub(super) async fn extract(client: &Client, url: &Url) -> Result<Vec<Media>> {
     let scope = page_data(client, url).await?;
-    Ok(item_media(video_item(&scope)?))
+    let items = item_media(video_item(&scope)?);
+    if items.is_empty() {
+        return Err(fail(
+            Platform::TikTok,
+            "the post has no supported media URLs",
+        ));
+    }
+    Ok(items)
 }
 
 /// Profile links look like `tiktok.com/@name`, without a video after it.
@@ -198,7 +205,14 @@ impl Pager {
 /// Loads a TikTok page and returns the data it embeds for the app.
 async fn page_data(client: &Client, url: &Url) -> Result<Value> {
     // Short links (vm.tiktok.com, /t/...) redirect to the full page.
-    let mut page = client.page(url.as_str()).await?;
+    let clean = canonical_post_url(url);
+    let mut page = client.page(clean.as_ref().unwrap_or(url).as_str()).await?;
+    if page.url.path() == "/login" {
+        return Err(fail(
+            Platform::TikTok,
+            "TikTok requires login for this post",
+        ));
+    }
     if !PAGE_DATA.is_match(&page.html) && page.html.contains(r#"id="cs""#) {
         let answer = challenge::solve(&page.html).ok_or_else(|| {
             fail(
@@ -222,11 +236,52 @@ async fn page_data(client: &Client, url: &Url) -> Result<Value> {
             );
         }
     }
-    PAGE_DATA
-        .captures(&page.html)
-        .and_then(|c| serde_json::from_str::<Value>(&c[1]).ok())
-        .and_then(|mut data| data.get_mut("__DEFAULT_SCOPE__").map(Value::take))
+    scope_from_html(&page.html, &page.url)
         .ok_or_else(|| fail(Platform::TikTok, "couldn't find any data on the page"))
+}
+
+fn canonical_post_url(url: &Url) -> Option<Url> {
+    let segments: Vec<_> = url.path_segments()?.filter(|s| !s.is_empty()).collect();
+    let id = match segments.as_slice() {
+        [user, "video" | "photo", id] if user.starts_with('@') => *id,
+        ["embed", id] | ["share", "video", id] => *id,
+        _ => return None,
+    };
+    if id.is_empty() || !id.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    let mut canonical = url.clone();
+    canonical.set_query(None);
+    canonical.set_fragment(None);
+    Some(canonical)
+}
+
+fn scope_from_html(html: &str, url: &Url) -> Option<Value> {
+    if let Some(scope) = PAGE_DATA
+        .captures(html)
+        .and_then(|c| serde_json::from_str::<Value>(&c[1]).ok())
+        .and_then(|mut v| v.get_mut("__DEFAULT_SCOPE__").map(Value::take))
+    {
+        return Some(scope);
+    }
+    static SIGI: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(
+            r#"(?s)<script[^>]+id=["'](?:SIGI_STATE|sigi-persisted-data)["'][^>]*>(.*?)</script>"#,
+        )
+        .unwrap()
+    });
+    let canonical = canonical_post_url(url)?;
+    let id = canonical
+        .path_segments()?
+        .filter(|s| !s.is_empty())
+        .next_back()?;
+    let data = SIGI
+        .captures(html)
+        .and_then(|c| serde_json::from_str::<Value>(&c[1]).ok())?;
+    let item = data.get("ItemModule")?.get(id)?;
+    Some(
+        serde_json::json!({"webapp.video-detail": {"statusCode": 0, "itemInfo": {"itemStruct": item}}}),
+    )
 }
 
 /// Before showing a page, TikTok sometimes sends a check page instead: a small
@@ -320,6 +375,14 @@ fn video_item(scope: &Value) -> Result<&Value> {
         .get("webapp.video-detail")
         .ok_or_else(|| fail(Platform::TikTok, "this link isn't a TikTok post"))?;
     check_status(detail, "post")?;
+    if detail.pointer("/itemInfo/itemStruct/isContentClassified") == Some(&Value::Bool(true))
+        && detail.pointer("/itemInfo/itemStruct/video").is_none()
+    {
+        return Err(fail(
+            Platform::TikTok,
+            "TikTok requires authorized login for this post",
+        ));
+    }
     detail
         .pointer("/itemInfo/itemStruct")
         .ok_or_else(|| fail(Platform::TikTok, "couldn't find the post on the page"))
@@ -328,6 +391,14 @@ fn video_item(scope: &Value) -> Result<&Value> {
 fn check_status(detail: &Value, what: &str) -> Result<()> {
     match detail["statusCode"].as_i64().unwrap_or(0) {
         0 => Ok(()),
+        10216 | 10222 => Err(fail(
+            Platform::TikTok,
+            "this post or account is private; authorized login is required",
+        )),
+        10204 => Err(fail(
+            Platform::TikTok,
+            "TikTok blocked this network from accessing the post",
+        )),
         status => {
             let reason = text(detail, "/statusMsg").unwrap_or_else(|| format!("status {status}"));
             Err(fail(
@@ -390,51 +461,172 @@ fn item_media(item: &Value) -> Vec<Media> {
     }]
 }
 
+// These public web-data variants are also handled by yt-dlp's TikTok extractor.
+// Keep this implementation independent: no Python process or external service.
+fn media_urls(value: &Value) -> Vec<String> {
+    fn collect(value: &Value, urls: &mut Vec<String>) {
+        match value {
+            Value::String(raw) => {
+                let normalized = if raw.starts_with("//") {
+                    format!("https:{raw}")
+                } else {
+                    raw.clone()
+                };
+                if let Ok(url) = Url::parse(&normalized)
+                    && matches!(url.scheme(), "https" | "http")
+                    && url.host_str().is_some()
+                    && !urls.contains(&normalized)
+                {
+                    urls.push(normalized);
+                }
+            }
+            Value::Array(values) => {
+                for v in values {
+                    collect(v, urls);
+                }
+            }
+            Value::Object(map) => {
+                for key in ["src", "url", "UrlList", "urlList"] {
+                    if let Some(v) = map.get(key) {
+                        collect(v, urls);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    let mut urls = Vec::new();
+    collect(value, &mut urls);
+    urls
+}
+
+fn format_metadata(
+    quality: &Value,
+    video: &Value,
+) -> (Option<String>, Option<u32>, Option<u32>, Option<u64>) {
+    static KEY: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"v[^_]+_([^_]+)_(\d+)p_(\d+)").unwrap());
+    let key = text(quality, "/PlayAddr/UrlKey");
+    let captures = key.as_deref().and_then(|k| KEY.captures(k));
+    let codec = captures
+        .as_ref()
+        .map(|c| c[1].to_owned())
+        .or_else(|| text(quality, "/CodecType"));
+    let codec = codec.map(|c| match c.as_str() {
+        "bytevc1" | "hevc" => "h265".into(),
+        _ => c,
+    });
+    let bitrate =
+        number(quality, "/Bitrate").or_else(|| captures.as_ref().and_then(|c| c[3].parse().ok()));
+    let mut width = dimension(quality, "/PlayAddr/Width");
+    let mut height = dimension(quality, "/PlayAddr/Height");
+    if (width.is_none() || height.is_none())
+        && let Some(c) = captures
+    {
+        let resolution = c[2]
+            .parse::<u32>()
+            .ok()
+            .map(|n| if n == 540 { 576 } else { n });
+        if let (Some(res), Some(w), Some(h)) = (
+            resolution,
+            dimension(video, "/width"),
+            dimension(video, "/height"),
+        ) && w > 0
+            && h > 0
+        {
+            if w < h {
+                width = Some(res);
+                height = Some(((u64::from(res) * u64::from(h) / u64::from(w)) as u32) & !1);
+            } else {
+                height = Some(res);
+                width = Some((((u64::from(res) * u64::from(w) / u64::from(h)) as u32) + 1) & !1);
+            }
+        }
+    }
+    (codec, width, height, bitrate)
+}
+
 fn video_formats(video: &Value) -> Vec<Format> {
-    let mut formats: Vec<Format> = video["bitrateInfo"]
+    let mut formats = Vec::new();
+    // Watermarked download URLs are a last resort, below normal playback formats.
+    for (i, url) in media_urls(&video["downloadAddr"])
+        .into_iter()
+        .chain(media_urls(&video["download"]["url"]))
+        .enumerate()
+    {
+        formats.push(Format::mp4(format!("download-watermarked-{i}"), url));
+    }
+    for (i, url) in media_urls(&video["playAddr"]).into_iter().enumerate() {
+        formats.push(Format {
+            width: dimension(video, "/width"),
+            height: dimension(video, "/height"),
+            bitrate: number(video, "/bitrate"),
+            codec: text(video, "/codecType"),
+            ..Format::mp4(
+                if i == 0 {
+                    "play".into()
+                } else {
+                    format!("play-{i}")
+                },
+                url,
+            )
+        });
+    }
+    for (i, quality) in video["bitrateInfo"]
         .as_array()
         .into_iter()
         .flatten()
         .enumerate()
-        .filter_map(|(i, b)| {
-            Some(Format {
-                width: dimension(b, "/PlayAddr/Width"),
-                height: dimension(b, "/PlayAddr/Height"),
-                bitrate: number(b, "/Bitrate"),
-                size: number(b, "/PlayAddr/DataSize"),
-                codec: text(b, "/CodecType"),
-                ..Format::mp4(
-                    text(b, "/GearName").unwrap_or_else(|| format!("play-{i}")),
-                    mirror(&b["PlayAddr"]["UrlList"])?,
-                )
-            })
-        })
-        .collect();
-
-    // Listed first so equal qualities from `bitrateInfo`, which have mirrors, win.
-    if let Some(url) = text(video, "/playAddr") {
-        formats.insert(
-            0,
-            Format {
-                width: dimension(video, "/width"),
-                height: dimension(video, "/height"),
-                bitrate: number(video, "/bitrate"),
-                codec: text(video, "/codecType"),
-                ..Format::mp4("play", url)
-            },
-        );
+    {
+        let (codec, width, height, bitrate) = format_metadata(quality, video);
+        // bytevc2 is a proprietary codec normal media players cannot decode.
+        if codec.as_deref() == Some("bytevc2") {
+            continue;
+        }
+        let urls = media_urls(&quality["PlayAddr"]);
+        let Some(primary) = urls.first() else {
+            continue;
+        };
+        let id = text(quality, "/GearName").unwrap_or_else(|| format!("play-{i}"));
+        let base = Format {
+            width,
+            height,
+            bitrate,
+            codec,
+            size: number(quality, "/PlayAddr/DataSize"),
+            ..Format::mp4(id.clone(), primary.clone())
+        };
+        // Prefer the first advertised media URL; retain every other URL as a mirror.
+        // Later equal formats win in rjs, so insert the preferred URL last.
+        for (index, url) in urls
+            .iter()
+            .enumerate()
+            .skip(1)
+            .rev()
+            .chain(std::iter::once((0, primary)))
+        {
+            let has_audio =
+                !Url::parse(url).is_ok_and(|u| u.path().ends_with("/media-video-hvc1/"));
+            if !has_audio {
+                continue;
+            }
+            formats.push(Format {
+                id: if index == 0 {
+                    id.clone()
+                } else {
+                    format!("{id}-mirror-{index}")
+                },
+                url: url.clone(),
+                has_audio,
+                ..base.clone()
+            });
+        }
     }
+    let mut seen = HashSet::new();
+    formats.reverse();
+    formats.retain(|f| seen.insert(f.url.clone()));
+    formats.reverse();
     formats
-}
-
-/// Each quality comes from several mirrors. For posts from the profile list, TikTok
-/// refuses the direct file-server links but serves its own `/aweme/v1/play/` link.
-fn mirror(urls: &Value) -> Option<String> {
-    let urls: Vec<&str> = urls.as_array()?.iter().filter_map(Value::as_str).collect();
-    urls.iter()
-        .find(|u| u.contains("tiktok.com/aweme/v1/play/"))
-        .or(urls.first())
-        .map(|u| (*u).to_owned())
 }
 
 fn avatar_media(user: &Value) -> Option<Media> {
@@ -470,6 +662,63 @@ mod tests {
     use super::*;
 
     #[test]
+    fn reads_web_address_shapes_and_deduplicates() {
+        let urls = media_urls(&json!([
+            {"src": "//cdn.example/one"}, {"url": "https://cdn.example/two"},
+            {"UrlList": ["https://cdn.example/one", "javascript:alert(1)"]}
+        ]));
+        assert_eq!(urls, ["https://cdn.example/one", "https://cdn.example/two"]);
+        let formats = video_formats(&json!({"width": 720, "height": 1280,
+            "playAddr": [{"src": "https://cdn.example/play"}],
+            "download": {"url": "https://cdn.example/watermarked"}}));
+        assert_eq!(formats.len(), 2);
+        assert_eq!(formats.last().unwrap().id, "play");
+    }
+
+    #[test]
+    fn infers_portrait_resolution_and_skips_unsupported_or_split_streams() {
+        let formats = video_formats(&json!({"width": 576, "height": 1024,
+        "bitrateInfo": [
+            {"PlayAddr": {"UrlKey": "v123_h264_720p_1200000", "UrlList": ["https://cdn.example/hd"]}},
+            {"PlayAddr": {"UrlKey": "v123_bytevc2_1080p_2000000", "UrlList": ["https://cdn.example/vvc"]}},
+            {"PlayAddr": {"UrlKey": "v123_bytevc1_1080p_2000000", "UrlList": ["https://cdn.example/media-video-hvc1/"]}}
+        ]}));
+        assert_eq!(formats.len(), 1);
+        let f = &formats[0];
+        assert_eq!(
+            (f.width, f.height, f.bitrate),
+            (Some(720), Some(1280), Some(1200000))
+        );
+        assert_eq!(f.codec.as_deref(), Some("h264"));
+    }
+
+    #[test]
+    fn reads_legacy_state_only_for_requested_post() {
+        let url = Url::parse("https://www.tiktok.com/@someone/video/123?_t=tracking#x").unwrap();
+        assert_eq!(
+            canonical_post_url(&url).unwrap().as_str(),
+            "https://www.tiktok.com/@someone/video/123"
+        );
+        let html = r#"<script id='SIGI_STATE'>{"ItemModule":{"123":{"id":"123","video":{"playAddr":"https://cdn.example/v"}},"456":{"id":"456"}}}</script>"#;
+        let scope = scope_from_html(html, &url).unwrap();
+        assert_eq!(video_item(&scope).unwrap()["id"], "123");
+        assert!(
+            scope_from_html(
+                html,
+                &Url::parse("https://www.tiktok.com/@someone/video/999").unwrap()
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn reports_restricted_posts_without_inventing_formats() {
+        for status in [10204, 10216, 10222] {
+            assert!(check_status(&json!({"statusCode": status}), "post").is_err());
+        }
+    }
+
+    #[test]
     fn recognises_profile_links() {
         let profile = |s: &str| is_profile(&Url::parse(s).unwrap());
         assert!(profile("https://www.tiktok.com/@scout2015"));
@@ -499,13 +748,15 @@ mod tests {
         let media = item_media(&item);
         assert_eq!(media.len(), 1);
         let f = &media[0].formats;
-        assert_eq!(f.len(), 2);
+        assert_eq!(f.len(), 3);
         assert_eq!(f[0].id, "play");
         assert_eq!(
-            (f[1].id.as_str(), f[1].height, f[1].size),
+            (f[2].id.as_str(), f[2].height, f[2].size),
             ("normal_720_0", Some(1280), Some(2048))
         );
+        assert_eq!(f[2].url, "https://v16-webapp-prime.tiktok.com/video/720");
         assert_eq!(f[1].url, "https://www.tiktok.com/aweme/v1/play/?id=720");
+        assert_ne!(f[1].id, f[2].id);
         assert!(
             f.iter()
                 .all(|f| f.headers.iter().any(|(k, _)| k == "Referer"))

@@ -19,6 +19,9 @@ pub enum Error {
     #[error("file error: {0}")]
     Io(#[from] std::io::Error),
 
+    #[error("invalid media response: {0}")]
+    InvalidMedia(&'static str),
+
     #[error("ffmpeg: {0}")]
     Ffmpeg(String),
 
