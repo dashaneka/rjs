@@ -118,17 +118,24 @@ fn media_in(tweet: &Value) -> Vec<Value> {
 
 /// Photo URLs look like `https://pbs.twimg.com/media/<name>.jpg`; `name=orig` asks for the uploaded original.
 fn photo_format(photo: &Value) -> Option<Format> {
-    let url = photo["media_url_https"].as_str()?;
-    let (base, ext) = url.rsplit_once('.').filter(|(_, ext)| !ext.contains('/'))?;
+    let mut url = Url::parse(photo["media_url_https"].as_str()?).ok()?;
+    let path = url.path();
+    let (base, ext) = path.rsplit_once('.')?;
+    let base = base.to_owned();
+    let ext = ext.to_owned();
+    if ext.is_empty() || ext.contains('/') {
+        return None;
+    }
+    url.set_path(&base);
+    url.set_query(None);
+    url.query_pairs_mut()
+        .append_pair("format", &ext)
+        .append_pair("name", "orig");
     Some(Format {
-        ext: if ext == "jpeg" {
-            "jpg".into()
-        } else {
-            ext.into()
-        },
+        ext: if ext == "jpeg" { "jpg".into() } else { ext },
         width: dimension(photo, "/original_info/width"),
         height: dimension(photo, "/original_info/height"),
-        ..Format::image("orig", format!("{base}?format={ext}&name=orig"))
+        ..Format::image("orig", url.to_string())
     })
 }
 
@@ -203,6 +210,17 @@ mod tests {
             Some("456")
         );
         assert_eq!(id("https://x.com/user").as_deref(), None);
+    }
+
+    #[test]
+    fn photo_query_does_not_become_part_of_extension() {
+        let photo = serde_json::json!({"media_url_https": "https://pbs.twimg.com/media/photo.jpg?name=small"});
+        let format = photo_format(&photo).unwrap();
+        assert_eq!(format.ext, "jpg");
+        assert_eq!(
+            format.url,
+            "https://pbs.twimg.com/media/photo?format=jpg&name=orig"
+        );
     }
 
     #[test]

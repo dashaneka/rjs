@@ -1,0 +1,952 @@
+{
+  "date": "2026-11-10",
+  "environment": {
+    "os": "Linux",
+    "architecture": "x86_64",
+    "python": "3.12.14",
+    "ffprobe": "7.1.5"
+  },
+  "method": "paired end-to-end subprocess wall time; alternating order; 3 repetitions per tool; one connection; fresh output directories; no runner warmup; caches not cleared",
+  "baseline": "yt-dlp 2026.10.26 (latest stable GitHub release checked on test date)",
+  "cases": [
+    {
+      "site": "tiktok",
+      "link": "https://www.tiktok.com/@cutesaaz/video/7700933153040583956",
+      "selectors": {
+        "rjs": "adapt_lower_720_1",
+        "yt-dlp": "bytevc1_720p_795937-0"
+      },
+      "summary": {
+        "rjs": {
+          "successful": 3,
+          "attempted": 3,
+          "median_seconds": 14.84077261999937,
+          "bytes": [
+            1494572,
+            1494572,
+            1494572
+          ]
+        },
+        "yt-dlp": {
+          "successful": 3,
+          "attempted": 3,
+          "median_seconds": 19.341522503000306,
+          "bytes": [
+            1494572,
+            1494572,
+            1494572
+          ]
+        }
+      },
+      "all_hashes_identical": true,
+      "sha256": "2913986172c6eba83a3f753f94c1226e175f68649a7b02a9a46fe5c49efde7ea",
+      "measurements": [
+        {
+          "tool": "rjs",
+          "iteration": 1,
+          "seconds": 14.84077261999937,
+          "success": true,
+          "bytes": 1494572,
+          "exit_code": 0,
+          "timeout": false,
+          "files": {
+            "cutesaaz_7700933153040583956.mp4": {
+              "bytes": 1494572,
+              "sha256": "2913986172c6eba83a3f753f94c1226e175f68649a7b02a9a46fe5c49efde7ea",
+              "ffprobe": {
+                "programs": [],
+                "stream_groups": [],
+                "streams": [
+                  {
+                    "codec_name": "aac",
+                    "codec_type": "audio"
+                  },
+                  {
+                    "codec_name": "hevc",
+                    "codec_type": "video",
+                    "width": 720,
+                    "height": 1280
+                  }
+                ],
+                "format": {
+                  "duration": "15.020998"
+                }
+              }
+            }
+          }
+        },
+        {
+          "tool": "yt-dlp",
+          "iteration": 1,
+          "seconds": 21.87887627999953,
+          "success": true,
+          "bytes": 1494572,
+          "exit_code": 0,
+          "timeout": false,
+          "files": {
+            "7700933153040583956.mp4": {
+              "bytes": 1494572,
+              "sha256": "2913986172c6eba83a3f753f94c1226e175f68649a7b02a9a46fe5c49efde7ea",
+              "ffprobe": {
+                "programs": [],
+                "stream_groups": [],
+                "streams": [
+                  {
+                    "codec_name": "aac",
+                    "codec_type": "audio"
+                  },
+                  {
+                    "codec_name": "hevc",
+                    "codec_type": "video",
+                    "width": 720,
+                    "height": 1280
+                  }
+                ],
+                "format": {
+                  "duration": "15.020998"
+                }
+              }
+            }
+          }
+        },
+        {
+          "tool": "yt-dlp",
+          "iteration": 2,
+          "seconds": 13.305616474999624,
+          "success": true,
+          "bytes": 1494572,
+          "exit_code": 0,
+          "timeout": false,
+          "files": {
+            "7700933153040583956.mp4": {
+              "bytes": 1494572,
+              "sha256": "2913986172c6eba83a3f753f94c1226e175f68649a7b02a9a46fe5c49efde7ea",
+              "ffprobe": {
+                "programs": [],
+                "stream_groups": [],
+                "streams": [
+                  {
+                    "codec_name": "aac",
+                    "codec_type": "audio"
+                  },
+                  {
+                    "codec_name": "hevc",
+                    "codec_type": "video",
+                    "width": 720,
+                    "height": 1280
+                  }
+                ],
+                "format": {
+                  "duration": "15.020998"
+                }
+              }
+            }
+          }
+        },
+        {
+          "tool": "rjs",
+          "iteration": 2,
+          "seconds": 17.832721269000103,
+          "success": true,
+          "bytes": 1494572,
+          "exit_code": 0,
+          "timeout": false,
+          "files": {
+            "cutesaaz_7700933153040583956.mp4": {
+              "bytes": 1494572,
+              "sha256": "2913986172c6eba83a3f753f94c1226e175f68649a7b02a9a46fe5c49efde7ea",
+              "ffprobe": {
+                "programs": [],
+                "stream_groups": [],
+                "streams": [
+                  {
+                    "codec_name": "aac",
+                    "codec_type": "audio"
+                  },
+                  {
+                    "codec_name": "hevc",
+                    "codec_type": "video",
+                    "width": 720,
+                    "height": 1280
+                  }
+                ],
+                "format": {
+                  "duration": "15.020998"
+                }
+              }
+            }
+          }
+        },
+        {
+          "tool": "rjs",
+          "iteration": 3,
+          "seconds": 13.66337415399994,
+          "success": true,
+          "bytes": 1494572,
+          "exit_code": 0,
+          "timeout": false,
+          "files": {
+            "cutesaaz_7700933153040583956.mp4": {
+              "bytes": 1494572,
+              "sha256": "2913986172c6eba83a3f753f94c1226e175f68649a7b02a9a46fe5c49efde7ea",
+              "ffprobe": {
+                "programs": [],
+                "stream_groups": [],
+                "streams": [
+                  {
+                    "codec_name": "aac",
+                    "codec_type": "audio"
+                  },
+                  {
+                    "codec_name": "hevc",
+                    "codec_type": "video",
+                    "width": 720,
+                    "height": 1280
+                  }
+                ],
+                "format": {
+                  "duration": "15.020998"
+                }
+              }
+            }
+          }
+        },
+        {
+          "tool": "yt-dlp",
+          "iteration": 3,
+          "seconds": 19.341522503000306,
+          "success": true,
+          "bytes": 1494572,
+          "exit_code": 0,
+          "timeout": false,
+          "files": {
+            "7700933153040583956.mp4": {
+              "bytes": 1494572,
+              "sha256": "2913986172c6eba83a3f753f94c1226e175f68649a7b02a9a46fe5c49efde7ea",
+              "ffprobe": {
+                "programs": [],
+                "stream_groups": [],
+                "streams": [
+                  {
+                    "codec_name": "aac",
+                    "codec_type": "audio"
+                  },
+                  {
+                    "codec_name": "hevc",
+                    "codec_type": "video",
+                    "width": 720,
+                    "height": 1280
+                  }
+                ],
+                "format": {
+                  "duration": "15.020998"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "metadata_warnings": []
+    },
+    {
+      "site": "x",
+      "link": "https://x.com/ai_for_success/status/2110689547939909884",
+      "selectors": {
+        "rjs": "720p",
+        "yt-dlp": "http-2176"
+      },
+      "summary": {
+        "rjs": {
+          "successful": 3,
+          "attempted": 3,
+          "median_seconds": 16.34466536200034,
+          "bytes": [
+            47664030,
+            47664030,
+            47664030
+          ]
+        },
+        "yt-dlp": {
+          "successful": 3,
+          "attempted": 3,
+          "median_seconds": 29.95495715299967,
+          "bytes": [
+            47664030,
+            47664030,
+            47664030
+          ]
+        }
+      },
+      "all_hashes_identical": true,
+      "sha256": "1ee522c481531fb5b72217fdc2534eb6eca8eaee02c5b7b6a3f71296e93480f4",
+      "measurements": [
+        {
+          "tool": "rjs",
+          "iteration": 1,
+          "seconds": 16.34466536200034,
+          "success": true,
+          "bytes": 47664030,
+          "exit_code": 0,
+          "timeout": false,
+          "files": {
+            "ai_for_success_2110689547939909884.mp4": {
+              "bytes": 47664030,
+              "sha256": "1ee522c481531fb5b72217fdc2534eb6eca8eaee02c5b7b6a3f71296e93480f4",
+              "ffprobe": {
+                "programs": [],
+                "stream_groups": [],
+                "streams": [
+                  {
+                    "codec_name": "h264",
+                    "codec_type": "video",
+                    "width": 1280,
+                    "height": 720
+                  },
+                  {
+                    "codec_name": "aac",
+                    "codec_type": "audio"
+                  }
+                ],
+                "format": {
+                  "duration": "657.045333"
+                }
+              }
+            }
+          }
+        },
+        {
+          "tool": "yt-dlp",
+          "iteration": 1,
+          "seconds": 30.21742049600016,
+          "success": true,
+          "bytes": 47664030,
+          "exit_code": 0,
+          "timeout": false,
+          "files": {
+            "2110663191328153600.mp4": {
+              "bytes": 47664030,
+              "sha256": "1ee522c481531fb5b72217fdc2534eb6eca8eaee02c5b7b6a3f71296e93480f4",
+              "ffprobe": {
+                "programs": [],
+                "stream_groups": [],
+                "streams": [
+                  {
+                    "codec_name": "h264",
+                    "codec_type": "video",
+                    "width": 1280,
+                    "height": 720
+                  },
+                  {
+                    "codec_name": "aac",
+                    "codec_type": "audio"
+                  }
+                ],
+                "format": {
+                  "duration": "657.045333"
+                }
+              }
+            }
+          }
+        },
+        {
+          "tool": "yt-dlp",
+          "iteration": 2,
+          "seconds": 29.95495715299967,
+          "success": true,
+          "bytes": 47664030,
+          "exit_code": 0,
+          "timeout": false,
+          "files": {
+            "2110663191328153600.mp4": {
+              "bytes": 47664030,
+              "sha256": "1ee522c481531fb5b72217fdc2534eb6eca8eaee02c5b7b6a3f71296e93480f4",
+              "ffprobe": {
+                "programs": [],
+                "stream_groups": [],
+                "streams": [
+                  {
+                    "codec_name": "h264",
+                    "codec_type": "video",
+                    "width": 1280,
+                    "height": 720
+                  },
+                  {
+                    "codec_name": "aac",
+                    "codec_type": "audio"
+                  }
+                ],
+                "format": {
+                  "duration": "657.045333"
+                }
+              }
+            }
+          }
+        },
+        {
+          "tool": "rjs",
+          "iteration": 2,
+          "seconds": 17.63722801499989,
+          "success": true,
+          "bytes": 47664030,
+          "exit_code": 0,
+          "timeout": false,
+          "files": {
+            "ai_for_success_2110689547939909884.mp4": {
+              "bytes": 47664030,
+              "sha256": "1ee522c481531fb5b72217fdc2534eb6eca8eaee02c5b7b6a3f71296e93480f4",
+              "ffprobe": {
+                "programs": [],
+                "stream_groups": [],
+                "streams": [
+                  {
+                    "codec_name": "h264",
+                    "codec_type": "video",
+                    "width": 1280,
+                    "height": 720
+                  },
+                  {
+                    "codec_name": "aac",
+                    "codec_type": "audio"
+                  }
+                ],
+                "format": {
+                  "duration": "657.045333"
+                }
+              }
+            }
+          }
+        },
+        {
+          "tool": "rjs",
+          "iteration": 3,
+          "seconds": 16.026608019000378,
+          "success": true,
+          "bytes": 47664030,
+          "exit_code": 0,
+          "timeout": false,
+          "files": {
+            "ai_for_success_2110689547939909884.mp4": {
+              "bytes": 47664030,
+              "sha256": "1ee522c481531fb5b72217fdc2534eb6eca8eaee02c5b7b6a3f71296e93480f4",
+              "ffprobe": {
+                "programs": [],
+                "stream_groups": [],
+                "streams": [
+                  {
+                    "codec_name": "h264",
+                    "codec_type": "video",
+                    "width": 1280,
+                    "height": 720
+                  },
+                  {
+                    "codec_name": "aac",
+                    "codec_type": "audio"
+                  }
+                ],
+                "format": {
+                  "duration": "657.045333"
+                }
+              }
+            }
+          }
+        },
+        {
+          "tool": "yt-dlp",
+          "iteration": 3,
+          "seconds": 26.725353754000025,
+          "success": true,
+          "bytes": 47664030,
+          "exit_code": 0,
+          "timeout": false,
+          "files": {
+            "2110663191328153600.mp4": {
+              "bytes": 47664030,
+              "sha256": "1ee522c481531fb5b72217fdc2534eb6eca8eaee02c5b7b6a3f71296e93480f4",
+              "ffprobe": {
+                "programs": [],
+                "stream_groups": [],
+                "streams": [
+                  {
+                    "codec_name": "h264",
+                    "codec_type": "video",
+                    "width": 1280,
+                    "height": 720
+                  },
+                  {
+                    "codec_name": "aac",
+                    "codec_type": "audio"
+                  }
+                ],
+                "format": {
+                  "duration": "657.045333"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "metadata_warnings": [
+        "Media IDs differ; verify the same item was selected.",
+        "Some selected dimensions or codec are unknown; equivalence is unverified."
+      ]
+    },
+    {
+      "site": "pinterest",
+      "link": "https://www.pinterest.com/pin/664281013778109217/",
+      "selectors": {
+        "rjs": "720p",
+        "yt-dlp": "V_720P"
+      },
+      "summary": {
+        "rjs": {
+          "successful": 3,
+          "attempted": 3,
+          "median_seconds": 13.239398267999604,
+          "bytes": [
+            18403864,
+            18403864,
+            18403864
+          ]
+        },
+        "yt-dlp": {
+          "successful": 3,
+          "attempted": 3,
+          "median_seconds": 19.551579760000095,
+          "bytes": [
+            18403864,
+            18403864,
+            18403864
+          ]
+        }
+      },
+      "all_hashes_identical": true,
+      "sha256": "9d8a2a12434a33648738bbf612c9fe665666abb16b180aca2be612383635815e",
+      "measurements": [
+        {
+          "tool": "rjs",
+          "iteration": 1,
+          "seconds": 12.356645624000521,
+          "success": true,
+          "bytes": 18403864,
+          "exit_code": 0,
+          "timeout": false,
+          "files": {
+            "thandisibanda1984_664281013778109217.mp4": {
+              "bytes": 18403864,
+              "sha256": "9d8a2a12434a33648738bbf612c9fe665666abb16b180aca2be612383635815e",
+              "ffprobe": {
+                "programs": [],
+                "stream_groups": [],
+                "streams": [
+                  {
+                    "codec_name": "h264",
+                    "codec_type": "video",
+                    "width": 1080,
+                    "height": 1920
+                  },
+                  {
+                    "codec_name": "aac",
+                    "codec_type": "audio"
+                  }
+                ],
+                "format": {
+                  "duration": "57.700000"
+                }
+              }
+            }
+          }
+        },
+        {
+          "tool": "yt-dlp",
+          "iteration": 1,
+          "seconds": 18.375860103000377,
+          "success": true,
+          "bytes": 18403864,
+          "exit_code": 0,
+          "timeout": false,
+          "files": {
+            "664281013778109217.mp4": {
+              "bytes": 18403864,
+              "sha256": "9d8a2a12434a33648738bbf612c9fe665666abb16b180aca2be612383635815e",
+              "ffprobe": {
+                "programs": [],
+                "stream_groups": [],
+                "streams": [
+                  {
+                    "codec_name": "h264",
+                    "codec_type": "video",
+                    "width": 1080,
+                    "height": 1920
+                  },
+                  {
+                    "codec_name": "aac",
+                    "codec_type": "audio"
+                  }
+                ],
+                "format": {
+                  "duration": "57.700000"
+                }
+              }
+            }
+          }
+        },
+        {
+          "tool": "yt-dlp",
+          "iteration": 2,
+          "seconds": 19.551579760000095,
+          "success": true,
+          "bytes": 18403864,
+          "exit_code": 0,
+          "timeout": false,
+          "files": {
+            "664281013778109217.mp4": {
+              "bytes": 18403864,
+              "sha256": "9d8a2a12434a33648738bbf612c9fe665666abb16b180aca2be612383635815e",
+              "ffprobe": {
+                "programs": [],
+                "stream_groups": [],
+                "streams": [
+                  {
+                    "codec_name": "h264",
+                    "codec_type": "video",
+                    "width": 1080,
+                    "height": 1920
+                  },
+                  {
+                    "codec_name": "aac",
+                    "codec_type": "audio"
+                  }
+                ],
+                "format": {
+                  "duration": "57.700000"
+                }
+              }
+            }
+          }
+        },
+        {
+          "tool": "rjs",
+          "iteration": 2,
+          "seconds": 14.046149137000612,
+          "success": true,
+          "bytes": 18403864,
+          "exit_code": 0,
+          "timeout": false,
+          "files": {
+            "thandisibanda1984_664281013778109217.mp4": {
+              "bytes": 18403864,
+              "sha256": "9d8a2a12434a33648738bbf612c9fe665666abb16b180aca2be612383635815e",
+              "ffprobe": {
+                "programs": [],
+                "stream_groups": [],
+                "streams": [
+                  {
+                    "codec_name": "h264",
+                    "codec_type": "video",
+                    "width": 1080,
+                    "height": 1920
+                  },
+                  {
+                    "codec_name": "aac",
+                    "codec_type": "audio"
+                  }
+                ],
+                "format": {
+                  "duration": "57.700000"
+                }
+              }
+            }
+          }
+        },
+        {
+          "tool": "rjs",
+          "iteration": 3,
+          "seconds": 13.239398267999604,
+          "success": true,
+          "bytes": 18403864,
+          "exit_code": 0,
+          "timeout": false,
+          "files": {
+            "thandisibanda1984_664281013778109217.mp4": {
+              "bytes": 18403864,
+              "sha256": "9d8a2a12434a33648738bbf612c9fe665666abb16b180aca2be612383635815e",
+              "ffprobe": {
+                "programs": [],
+                "stream_groups": [],
+                "streams": [
+                  {
+                    "codec_name": "h264",
+                    "codec_type": "video",
+                    "width": 1080,
+                    "height": 1920
+                  },
+                  {
+                    "codec_name": "aac",
+                    "codec_type": "audio"
+                  }
+                ],
+                "format": {
+                  "duration": "57.700000"
+                }
+              }
+            }
+          }
+        },
+        {
+          "tool": "yt-dlp",
+          "iteration": 3,
+          "seconds": 21.600911281999288,
+          "success": true,
+          "bytes": 18403864,
+          "exit_code": 0,
+          "timeout": false,
+          "files": {
+            "664281013778109217.mp4": {
+              "bytes": 18403864,
+              "sha256": "9d8a2a12434a33648738bbf612c9fe665666abb16b180aca2be612383635815e",
+              "ffprobe": {
+                "programs": [],
+                "stream_groups": [],
+                "streams": [
+                  {
+                    "codec_name": "h264",
+                    "codec_type": "video",
+                    "width": 1080,
+                    "height": 1920
+                  },
+                  {
+                    "codec_name": "aac",
+                    "codec_type": "audio"
+                  }
+                ],
+                "format": {
+                  "duration": "57.700000"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "metadata_warnings": [
+        "Some selected dimensions or codec are unknown; equivalence is unverified."
+      ]
+    },
+    {
+      "site": "instagram",
+      "link": "https://www.instagram.com/reel/Chunk8-jurw/",
+      "selectors": {
+        "rjs": "mp4",
+        "yt-dlp": "0"
+      },
+      "summary": {
+        "rjs": {
+          "successful": 3,
+          "attempted": 3,
+          "median_seconds": 14.348126034000416,
+          "bytes": [
+            918120,
+            918120,
+            918120
+          ]
+        },
+        "yt-dlp": {
+          "successful": 3,
+          "attempted": 3,
+          "median_seconds": 26.729712557999846,
+          "bytes": [
+            918120,
+            918120,
+            918120
+          ]
+        }
+      },
+      "all_hashes_identical": true,
+      "sha256": "7a956bbb30f3fa0488b2fc687a077fb6156cd1b5fdd0b98157b26e6355a950ef",
+      "measurements": [
+        {
+          "tool": "rjs",
+          "iteration": 1,
+          "seconds": 15.732226328999786,
+          "success": true,
+          "bytes": 918120,
+          "exit_code": 0,
+          "timeout": false,
+          "files": {
+            "instagram_Chunk8-jurw.mp4": {
+              "bytes": 918120,
+              "sha256": "7a956bbb30f3fa0488b2fc687a077fb6156cd1b5fdd0b98157b26e6355a950ef",
+              "ffprobe": {
+                "programs": [],
+                "stream_groups": [],
+                "streams": [
+                  {
+                    "codec_name": "h264",
+                    "codec_type": "video",
+                    "width": 480,
+                    "height": 854
+                  }
+                ],
+                "format": {
+                  "duration": "4.966667"
+                }
+              }
+            }
+          }
+        },
+        {
+          "tool": "yt-dlp",
+          "iteration": 1,
+          "seconds": 28.484820652000053,
+          "success": true,
+          "bytes": 918120,
+          "exit_code": 0,
+          "timeout": false,
+          "files": {
+            "Chunk8-jurw.mp4": {
+              "bytes": 918120,
+              "sha256": "7a956bbb30f3fa0488b2fc687a077fb6156cd1b5fdd0b98157b26e6355a950ef",
+              "ffprobe": {
+                "programs": [],
+                "stream_groups": [],
+                "streams": [
+                  {
+                    "codec_name": "h264",
+                    "codec_type": "video",
+                    "width": 480,
+                    "height": 854
+                  }
+                ],
+                "format": {
+                  "duration": "4.966667"
+                }
+              }
+            }
+          }
+        },
+        {
+          "tool": "yt-dlp",
+          "iteration": 2,
+          "seconds": 26.729712557999846,
+          "success": true,
+          "bytes": 918120,
+          "exit_code": 0,
+          "timeout": false,
+          "files": {
+            "Chunk8-jurw.mp4": {
+              "bytes": 918120,
+              "sha256": "7a956bbb30f3fa0488b2fc687a077fb6156cd1b5fdd0b98157b26e6355a950ef",
+              "ffprobe": {
+                "programs": [],
+                "stream_groups": [],
+                "streams": [
+                  {
+                    "codec_name": "h264",
+                    "codec_type": "video",
+                    "width": 480,
+                    "height": 854
+                  }
+                ],
+                "format": {
+                  "duration": "4.966667"
+                }
+              }
+            }
+          }
+        },
+        {
+          "tool": "rjs",
+          "iteration": 2,
+          "seconds": 13.155659115999697,
+          "success": true,
+          "bytes": 918120,
+          "exit_code": 0,
+          "timeout": false,
+          "files": {
+            "instagram_Chunk8-jurw.mp4": {
+              "bytes": 918120,
+              "sha256": "7a956bbb30f3fa0488b2fc687a077fb6156cd1b5fdd0b98157b26e6355a950ef",
+              "ffprobe": {
+                "programs": [],
+                "stream_groups": [],
+                "streams": [
+                  {
+                    "codec_name": "h264",
+                    "codec_type": "video",
+                    "width": 480,
+                    "height": 854
+                  }
+                ],
+                "format": {
+                  "duration": "4.966667"
+                }
+              }
+            }
+          }
+        },
+        {
+          "tool": "rjs",
+          "iteration": 3,
+          "seconds": 14.348126034000416,
+          "success": true,
+          "bytes": 918120,
+          "exit_code": 0,
+          "timeout": false,
+          "files": {
+            "instagram_Chunk8-jurw.mp4": {
+              "bytes": 918120,
+              "sha256": "7a956bbb30f3fa0488b2fc687a077fb6156cd1b5fdd0b98157b26e6355a950ef",
+              "ffprobe": {
+                "programs": [],
+                "stream_groups": [],
+                "streams": [
+                  {
+                    "codec_name": "h264",
+                    "codec_type": "video",
+                    "width": 480,
+                    "height": 854
+                  }
+                ],
+                "format": {
+                  "duration": "4.966667"
+                }
+              }
+            }
+          }
+        },
+        {
+          "tool": "yt-dlp",
+          "iteration": 3,
+          "seconds": 25.83231994200014,
+          "success": true,
+          "bytes": 918120,
+          "exit_code": 0,
+          "timeout": false,
+          "files": {
+            "Chunk8-jurw.mp4": {
+              "bytes": 918120,
+              "sha256": "7a956bbb30f3fa0488b2fc687a077fb6156cd1b5fdd0b98157b26e6355a950ef",
+              "ffprobe": {
+                "programs": [],
+                "stream_groups": [],
+                "streams": [
+                  {
+                    "codec_name": "h264",
+                    "codec_type": "video",
+                    "width": 480,
+                    "height": 854
+                  }
+                ],
+                "format": {
+                  "duration": "4.966667"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "metadata_warnings": [
+        "Some selected dimensions or codec are unknown; equivalence is unverified."
+      ]
+    }
+  ]
+}

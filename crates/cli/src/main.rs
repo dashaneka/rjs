@@ -18,8 +18,20 @@ use rjs_core::{Client, DownloadOptions, Media, Result, Selection};
 #[command(version)]
 struct Args {
     /// Post or profile links.
-    #[arg(required = true, value_name = "LINK")]
+    #[arg(required_unless_present = "batch_file", value_name = "LINK")]
     links: Vec<String>,
+
+    /// Read additional links from a UTF-8 file, one per line; ignore blanks and # comments.
+    #[arg(long, value_name = "FILE")]
+    batch_file: Option<PathBuf>,
+
+    /// Print one JSON metadata object per link without downloading (JSON Lines).
+    #[arg(long)]
+    dump_json: bool,
+
+    /// Suppress normal output and progress; errors remain on stderr.
+    #[arg(short, long)]
+    quiet: bool,
 
     /// Folder to save into.
     #[arg(short, long, default_value = ".", value_name = "DIR")]
@@ -29,7 +41,8 @@ struct Args {
     #[arg(short, long)]
     info: bool,
 
-    /// Format to download: an ID shown by --info (e.g. play, hd) or a quality (e.g. 720).
+    /// Format ID, quality (e.g. 720p), best, compatible, best-resolution, worst,
+    /// audio/bestaudio, or worstaudio. Audio selectors require an audio-only stream.
     #[arg(short, long)]
     format: Option<String>,
 
@@ -61,7 +74,20 @@ struct Args {
 
 #[tokio::main]
 async fn main() -> ExitCode {
-    let args = Args::parse();
+    let mut args = Args::parse();
+    if let Some(file) = &args.batch_file {
+        match std::fs::read_to_string(file) {
+            Ok(contents) => args.links.extend(batch_links(&contents)),
+            Err(error) => {
+                eprintln!("could not read batch file {}: {error}", file.display());
+                return ExitCode::FAILURE;
+            }
+        }
+    }
+    if args.links.is_empty() {
+        eprintln!("no links supplied");
+        return ExitCode::FAILURE;
+    }
     let client = match Client::new() {
         Ok(client) => client,
         Err(e) => {
@@ -100,10 +126,16 @@ async fn main() -> ExitCode {
     }
 
     let t = &session.totals;
-    if !session.args.info && t.saved + t.skipped + t.failed > 1 {
+    if !session.args.info
+        && !session.args.dump_json
+        && !session.args.quiet
+        && t.saved + t.skipped + t.failed > 1
+    {
         ui::summary(t, started.elapsed(), &session.args.output);
     }
-    println!();
+    if !session.args.quiet && !session.args.dump_json {
+        println!();
+    }
     if link_failed || t.failed > 0 {
         ExitCode::FAILURE
     } else {
@@ -120,6 +152,9 @@ struct Session {
 
 impl Session {
     async fn run(&mut self, link: &str) -> Result<()> {
+        if self.args.dump_json {
+            return self.metadata(link).await;
+        }
         if self.args.avatar {
             self.avatar(link).await
         } else if rjs_core::is_profile(link) {
@@ -129,15 +164,39 @@ impl Session {
         }
     }
 
+    async fn metadata(&self, link: &str) -> Result<()> {
+        let value = if self.args.avatar {
+            serde_json::json!({"url": link, "type": "avatar", "media": rjs_core::avatar(&self.client, link).await?})
+        } else if rjs_core::is_profile(link) {
+            let profile = rjs_core::profile(&self.client, link).await?;
+            serde_json::json!({"url": link, "type": "profile", "platform": profile.platform,
+                "username": profile.username, "name": profile.name, "bio": profile.bio,
+                "post_count": profile.post_count, "follower_count": profile.follower_count,
+                "private": profile.private, "avatar": profile.avatar})
+        } else {
+            serde_json::json!({"url": link, "type": "post", "media": rjs_core::extract(&self.client, link).await?})
+        };
+        use std::io::Write;
+        let mut stdout = std::io::stdout().lock();
+        writeln!(stdout, "{value}").map_err(rjs_core::Error::Io)
+    }
+
     async fn post(&mut self, link: &str) -> Result<()> {
         let items = rjs_core::extract(&self.client, link).await?;
-        ui::post_header(&items[0], items.len());
+        let first = items
+            .first()
+            .ok_or_else(|| rjs_core::Error::Io(std::io::Error::other("no media found")))?;
+        if !self.args.quiet {
+            ui::post_header(first, items.len());
+        }
 
         let output = self.args.output.clone();
         for (i, media) in items.iter().enumerate() {
             let label = ui::item_label(media, i + 1, items.len());
             if self.args.info {
-                ui::media_info(media, Some(&label));
+                if !self.args.quiet {
+                    ui::media_info(media, Some(&label));
+                }
             } else {
                 self.save(media, &label, &output).await;
             }
@@ -147,9 +206,13 @@ impl Session {
 
     async fn avatar(&mut self, link: &str) -> Result<()> {
         let avatar = rjs_core::avatar(&self.client, link).await?;
-        ui::post_header(&avatar, 1);
+        if !self.args.quiet {
+            ui::post_header(&avatar, 1);
+        }
         if self.args.info {
-            ui::media_info(&avatar, Some("avatar"));
+            if !self.args.quiet {
+                ui::media_info(&avatar, Some("avatar"));
+            }
         } else {
             let output = self.args.output.clone();
             self.save(&avatar, "avatar", &output).await;
@@ -159,11 +222,15 @@ impl Session {
 
     async fn profile(&mut self, link: &str) -> Result<()> {
         let mut profile = rjs_core::profile(&self.client, link).await?;
-        ui::profile_header(&profile);
+        if !self.args.quiet {
+            ui::profile_header(&profile);
+        }
         if self.args.info {
-            ui::hint(
-                "Run without --info to download the profile picture and every post, or add --limit N.",
-            );
+            if !self.args.quiet {
+                ui::hint(
+                    "Run without --info to download the profile picture and every post, or add --limit N.",
+                );
+            }
             return Ok(());
         }
 
@@ -194,7 +261,7 @@ impl Session {
             tokio::time::sleep(Duration::from_millis(600)).await;
         }
 
-        if posts == 0 {
+        if posts == 0 && !self.args.quiet {
             ui::note(if profile.private {
                 "This account is private, so its posts can't be listed."
             } else {
@@ -216,17 +283,21 @@ impl Session {
             return;
         }
 
-        let bar = ui::Bar::new(label);
+        let bar = ui::Bar::new(label, self.args.quiet);
         let result = rjs_core::download_media(&self.client, media, dir, &self.options, &bar).await;
         bar.clear();
         match result {
             Ok(saved) if saved.skipped => {
-                ui::skipped(label, &saved.path);
+                if !self.args.quiet {
+                    ui::skipped(label, &saved.path);
+                }
                 self.totals.skipped += 1;
             }
             Ok(saved) => {
                 let bytes = std::fs::metadata(&saved.path).map_or(0, |m| m.len());
-                ui::saved(label, format.as_ref(), bytes, &saved.path);
+                if !self.args.quiet {
+                    ui::saved(label, format.as_ref(), bytes, &saved.path);
+                }
                 self.totals.saved += 1;
                 self.totals.bytes += bytes;
             }
@@ -248,10 +319,46 @@ fn load_cookies(client: &Client, args: &Args) -> Result<()> {
         (None, None) => return Ok(()),
     };
     let added = client.add_cookies(&cookies);
-    ui::cookies_loaded(added, &source);
+    if !args.quiet && !args.dump_json {
+        ui::cookies_loaded(added, &source);
+    }
     Ok(())
 }
 
 fn create_dir(dir: &Path) -> Result<()> {
     std::fs::create_dir_all(dir).map_err(rjs_core::Error::Io)
+}
+
+fn batch_links(contents: &str) -> Vec<String> {
+    contents
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty() && !line.starts_with('#'))
+        .map(str::to_owned)
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn batch_ignores_comments_and_preserves_url_fragments() {
+        assert_eq!(
+            batch_links(
+                "  # comment\r\n\n https://example.com/a#fragment \r\nhttps://example.com/b\n"
+            ),
+            vec!["https://example.com/a#fragment", "https://example.com/b"]
+        );
+    }
+
+    #[test]
+    fn batch_can_replace_positional_links() {
+        assert!(
+            Args::try_parse_from(["rjs", "--batch-file", "links.txt", "--dump-json", "--quiet"])
+                .is_ok()
+        );
+        assert!(Args::try_parse_from(["rjs"]).is_err());
+        assert!(Args::try_parse_from(["rjs", "https://example.com"]).is_ok());
+    }
 }

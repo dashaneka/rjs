@@ -20,6 +20,49 @@ pub struct Client {
     jar: Arc<Jar>,
 }
 
+/// HTTP configuration shared by extractors and downloads.
+#[derive(Clone)]
+pub struct ClientBuilder {
+    connect_timeout: Duration,
+    read_timeout: Duration,
+    user_agent: String,
+    proxy: Option<String>,
+}
+
+impl Default for ClientBuilder {
+    fn default() -> Self {
+        Self {
+            connect_timeout: Duration::from_secs(15),
+            read_timeout: Duration::from_secs(30),
+            user_agent: BROWSER_UA.into(),
+            proxy: None,
+        }
+    }
+}
+
+impl ClientBuilder {
+    pub fn connect_timeout(mut self, timeout: Duration) -> Self {
+        self.connect_timeout = timeout;
+        self
+    }
+    pub fn read_timeout(mut self, timeout: Duration) -> Self {
+        self.read_timeout = timeout;
+        self
+    }
+    pub fn user_agent(mut self, user_agent: impl Into<String>) -> Self {
+        self.user_agent = user_agent.into();
+        self
+    }
+    /// Explicit proxy for both extraction and downloads; ordinary environment proxies remain the default.
+    pub fn proxy(mut self, url: impl Into<String>) -> Self {
+        self.proxy = Some(url.into());
+        self
+    }
+    pub fn build(self) -> Result<Client> {
+        Client::configured(self)
+    }
+}
+
 pub(crate) struct Page {
     /// Final URL after redirects.
     pub url: Url,
@@ -28,19 +71,36 @@ pub(crate) struct Page {
 
 impl Client {
     pub fn new() -> Result<Self> {
+        Self::builder().build()
+    }
+
+    pub fn builder() -> ClientBuilder {
+        ClientBuilder::default()
+    }
+
+    fn configured(settings: ClientBuilder) -> Result<Self> {
         // Fails only when a provider is already installed, which is just as good.
         let _ = rustls::crypto::ring::default_provider().install_default();
         let jar = Arc::new(Jar::default());
         let mut headers = HeaderMap::new();
         headers.insert(ACCEPT_LANGUAGE, HeaderValue::from_static("en-US,en;q=0.9"));
 
+        let proxy = settings
+            .proxy
+            .as_deref()
+            .map(reqwest::Proxy::all)
+            .transpose()?;
         let builder = || {
-            reqwest::Client::builder()
-                .user_agent(BROWSER_UA)
+            let mut builder = reqwest::Client::builder()
+                .user_agent(&settings.user_agent)
                 .default_headers(headers.clone())
                 .cookie_provider(jar.clone())
-                .connect_timeout(Duration::from_secs(15))
-                .read_timeout(Duration::from_secs(30))
+                .connect_timeout(settings.connect_timeout)
+                .read_timeout(settings.read_timeout);
+            if let Some(proxy) = &proxy {
+                builder = builder.proxy(proxy.clone());
+            }
+            builder
         };
         let http = builder().build()?;
         let hidden = builder()
@@ -63,23 +123,42 @@ impl Client {
 
     /// Loads a web page the way a browser navigating to it would.
     pub(crate) async fn page(&self, url: &str) -> Result<Page> {
-        let resp = self
-            .http_for(url)
-            .get(url)
-            .header(
-                ACCEPT,
-                "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            )
-            .header("Sec-Fetch-Dest", "document")
-            .header("Sec-Fetch-Mode", "navigate")
-            .header("Sec-Fetch-Site", "none")
-            .header("Upgrade-Insecure-Requests", "1")
-            .send()
-            .await?;
-        Ok(Page {
-            url: resp.url().clone(),
-            html: resp.text().await?,
-        })
+        for attempt in 0..3 {
+            let result = async {
+                let response = self
+                    .http_for(url)
+                    .get(url)
+                    .header(
+                        ACCEPT,
+                        "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                    )
+                    .header("Sec-Fetch-Dest", "document")
+                    .header("Sec-Fetch-Mode", "navigate")
+                    .header("Sec-Fetch-Site", "none")
+                    .header("Upgrade-Insecure-Requests", "1")
+                    .send()
+                    .await?;
+                // Retry transient server errors, not login/check pages or permanent failures.
+                if response.status().is_server_error() {
+                    response.error_for_status_ref()?;
+                }
+                Ok(Page {
+                    url: response.url().clone(),
+                    html: response.text().await?,
+                })
+            }
+            .await;
+            let result = result.map_err(crate::Error::Network);
+            if let Err(error) = &result
+                && attempt < 2
+                && error.is_retryable()
+            {
+                tokio::time::sleep(Duration::from_millis(200 * (1 << attempt))).await;
+                continue;
+            }
+            return result;
+        }
+        unreachable!("bounded retry loop always returns")
     }
 
     /// Sends these cookies (e.g. a logged-in session) with every matching request.
@@ -254,6 +333,43 @@ mod hidden_name {
 mod tests {
     use super::*;
     use crate::Cookie;
+
+    #[tokio::test]
+    async fn configured_page_retries_transient_server_error_and_sends_user_agent() {
+        use std::io::{Read, Write};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}/page", listener.local_addr().unwrap());
+        let server = std::thread::spawn(move || {
+            for status in ["503 Service Unavailable", "200 OK"] {
+                let (mut socket, _) = listener.accept().unwrap();
+                let mut request = Vec::new();
+                let mut byte = [0];
+                while !request.ends_with(b"\r\n\r\n") {
+                    socket.read_exact(&mut byte).unwrap();
+                    request.push(byte[0]);
+                }
+                assert!(
+                    String::from_utf8(request)
+                        .unwrap()
+                        .to_ascii_lowercase()
+                        .contains("user-agent: rjs-test/1.0")
+                );
+                write!(
+                    socket,
+                    "HTTP/1.1 {status}\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok"
+                )
+                .unwrap();
+            }
+        });
+        let client = Client::builder()
+            .user_agent("rjs-test/1.0")
+            .connect_timeout(Duration::from_secs(1))
+            .read_timeout(Duration::from_secs(1))
+            .build()
+            .unwrap();
+        assert_eq!(client.page(&url).await.unwrap().html, "ok");
+        server.join().unwrap();
+    }
 
     fn cookie(domain: &str, name: &str) -> Cookie {
         Cookie {

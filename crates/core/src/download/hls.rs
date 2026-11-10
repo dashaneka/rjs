@@ -74,18 +74,13 @@ pub(super) async fn download(
     progress.start(label, None, 0);
     let part = part_path(dest, "part");
     let mut out = BufWriter::with_capacity(256 * 1024, File::create(&part).await?);
-    if let Some(init) = &playlist.init {
-        let data = fetch_bytes(client, &init.url, init.range, &headers).await?;
-        out.write_all(&data).await?;
-        progress.advance(data.len() as u64);
-    }
     let mut pieces = stream::iter(
         playlist
             .segments
             .iter()
             .map(|segment| fetch_segment(client, segment, &keys, &headers)),
     )
-    .buffered(options.connections.max(1));
+    .buffered(options.connections.clamp(1, 32));
     while let Some(data) = pieces.try_next().await? {
         out.write_all(&data).await?;
         progress.advance(data.len() as u64);
@@ -94,7 +89,7 @@ pub(super) async fn download(
     drop(out);
 
     // Pieces with an init section are already MP4 fragments.
-    if playlist.init.is_some() {
+    if playlist.has_init {
         fs::rename(&part, dest).await?;
         return Ok(dest.to_path_buf());
     }
@@ -171,7 +166,32 @@ async fn fetch_bytes(
         }
         let result: Result<Vec<u8>> = async {
             let resp = request.send().await?.error_for_status()?;
-            Ok(resp.bytes().await?.to_vec())
+            if let Some((start, end)) = range
+                && (resp.status() != reqwest::StatusCode::PARTIAL_CONTENT
+                    || !super::content_range(resp.headers()).is_some_and(
+                        |(actual_start, actual_end, _)| actual_start == start && actual_end == end,
+                    ))
+            {
+                return Err(Error::Stream(
+                    "the server returned an incorrect video byte range".into(),
+                ));
+            }
+            if range.is_none() && resp.status() != reqwest::StatusCode::OK {
+                return Err(Error::Stream(
+                    "the server did not return a complete video piece".into(),
+                ));
+            }
+            super::reject_encoded_response(resp.headers())?;
+            let data = resp.bytes().await?.to_vec();
+            if let Some((start, end)) = range
+                && data.len() as u64 != end - start + 1
+            {
+                return Err(Error::Stream("a video byte range was truncated".into()));
+            }
+            if data.is_empty() {
+                return Err(Error::Stream("a piece of the video was empty".into()));
+            }
+            Ok(data)
         }
         .await;
         match result {
@@ -230,7 +250,7 @@ fn variants(text: &str, base: &Url) -> Vec<Format> {
 
 struct Playlist {
     /// The MP4 header that fragmented-MP4 pieces need in front of them.
-    init: Option<Segment>,
+    has_init: bool,
     segments: Vec<Segment>,
 }
 
@@ -251,7 +271,7 @@ struct Key {
 fn parse_media(text: &str, base: &Url) -> Result<Playlist> {
     let bad = |what: &str| Error::Stream(format!("the video's playlist has {what}"));
     let mut playlist = Playlist {
-        init: None,
+        has_init: false,
         segments: Vec::new(),
     };
     let mut sequence = 0;
@@ -262,18 +282,27 @@ fn parse_media(text: &str, base: &Url) -> Result<Playlist> {
 
     for line in text.lines().map(str::trim) {
         if let Some(value) = line.strip_prefix("#EXT-X-MEDIA-SEQUENCE:") {
-            sequence = value.parse().unwrap_or(0);
+            sequence = value
+                .parse()
+                .map_err(|_| bad("an invalid media sequence"))?;
         } else if let Some(value) = line.strip_prefix("#EXT-X-KEY:") {
             let attrs = attributes(value);
             key = match attrs.get("METHOD").map(String::as_str) {
-                None | Some("NONE") => None,
+                Some("NONE") => None,
+                None => return Err(bad("a key without a method")),
                 Some("AES-128") => {
+                    if attrs.get("KEYFORMAT").is_some_and(|v| v != "identity") {
+                        return Err(bad("an unsupported key format"));
+                    }
                     let uri = attrs
                         .get("URI")
                         .ok_or_else(|| bad("a key without a link"))?;
                     Some(Key {
                         url: base.join(uri).map_err(|_| bad("a bad key link"))?,
-                        iv: attrs.get("IV").and_then(|iv| parse_iv(iv)),
+                        iv: attrs
+                            .get("IV")
+                            .map(|iv| parse_iv(iv).ok_or_else(|| bad("an invalid key IV")))
+                            .transpose()?,
                     })
                 }
                 Some(other) => {
@@ -290,39 +319,65 @@ fn parse_media(text: &str, base: &Url) -> Result<Playlist> {
             let url = base.join(uri).map_err(|_| bad("a bad header link"))?;
             let range = attrs
                 .get("BYTERANGE")
-                .and_then(|r| parse_range(r))
+                .map(|r| parse_range(r).ok_or_else(|| bad("an invalid header range")))
+                .transpose()?
                 .map(|(len, offset)| {
                     let start = offset.unwrap_or(0);
-                    (start, start + len - 1)
-                });
-            playlist.init = Some(Segment {
+                    start
+                        .checked_add(len - 1)
+                        .map(|end| (start, end))
+                        .ok_or_else(|| bad("an overflowing header range"))
+                })
+                .transpose()?;
+            if key.as_ref().is_some_and(|k: &Key| k.iv.is_none()) {
+                return Err(bad("an encrypted header without an explicit IV"));
+            }
+            playlist.has_init = true;
+            playlist.segments.push(Segment {
                 url,
                 range,
-                key: None,
+                key: key.clone(),
                 sequence: 0,
             });
         } else if let Some(value) = line.strip_prefix("#EXT-X-BYTERANGE:") {
-            pending_range = parse_range(value);
+            pending_range = Some(parse_range(value).ok_or_else(|| bad("an invalid byte range"))?);
         } else if !line.is_empty() && !line.starts_with('#') {
             let url = base.join(line).map_err(|_| bad("a bad link"))?;
-            let range = pending_range.take().map(|(len, offset)| {
-                let start = offset.unwrap_or_else(|| match &last_end {
-                    Some((prev, end)) if *prev == url => end + 1,
-                    _ => 0,
-                });
-                (start, start + len - 1)
-            });
-            if let Some((_, end)) = range {
-                last_end = Some((url.clone(), end));
-            }
+            let range = pending_range
+                .take()
+                .map(|(len, offset)| {
+                    let start = match offset {
+                        Some(start) => start,
+                        None => match &last_end {
+                            Some((prev, end)) if *prev == url => end
+                                .checked_add(1)
+                                .ok_or_else(|| bad("an overflowing byte range"))?,
+                            _ => return Err(bad("a byte range without a preceding range")),
+                        },
+                    };
+                    let end = start
+                        .checked_add(len - 1)
+                        .ok_or_else(|| bad("an overflowing byte range"))?;
+                    Ok((start, end))
+                })
+                .transpose()?;
+            last_end = range.map(|(_, end)| (url.clone(), end));
             playlist.segments.push(Segment {
                 url,
                 range,
                 key: key.clone(),
                 sequence,
             });
-            sequence += 1;
+            sequence = sequence
+                .checked_add(1)
+                .ok_or_else(|| bad("an overflowing media sequence"))?;
         }
+    }
+    if pending_range.is_some() {
+        return Err(bad("a byte range without a segment"));
+    }
+    if text.lines().any(|l| l.starts_with("#EXT-X-STREAM-INF:")) {
+        return Err(bad("an unresolved master playlist"));
     }
     Ok(playlist)
 }
@@ -370,6 +425,49 @@ mod tests {
     use aes::cipher::BlockModeEncrypt;
 
     use super::*;
+
+    #[tokio::test]
+    async fn fetches_valid_local_http_byte_range() {
+        use std::io::{Read, Write};
+        use std::net::TcpListener;
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = Url::parse(&format!("http://{}/piece", listener.local_addr().unwrap())).unwrap();
+        let server = std::thread::spawn(move || {
+            let (mut socket, _) = listener.accept().unwrap();
+            let mut request = [0; 2048];
+            let n = socket.read(&mut request).unwrap();
+            assert!(
+                String::from_utf8_lossy(&request[..n])
+                    .to_ascii_lowercase()
+                    .contains("range: bytes=1-2")
+            );
+            socket.write_all(b"HTTP/1.1 206 Partial Content\r\nContent-Range: bytes 1-2/4\r\nContent-Length: 2\r\nConnection: close\r\n\r\nbc").unwrap();
+        });
+        assert_eq!(
+            fetch_bytes(
+                &Client::new().unwrap(),
+                &url,
+                Some((1, 2)),
+                &HeaderMap::new()
+            )
+            .await
+            .unwrap(),
+            b"bc"
+        );
+        server.join().unwrap();
+    }
+
+    #[test]
+    fn preserves_map_changes_and_rejects_implicit_range_without_predecessor() {
+        let playlist = parse_media(
+            "#EXTM3U\n#EXT-X-MAP:URI=\"a.mp4\"\na.m4s\n#EXT-X-MAP:URI=\"b.mp4\"\nb.m4s\n",
+            &base(),
+        )
+        .unwrap();
+        assert_eq!(playlist.segments.len(), 4);
+        assert!(playlist.segments[2].url.path().ends_with("b.mp4"));
+        assert!(parse_media("#EXTM3U\n#EXT-X-BYTERANGE:3\na.m4s\n", &base()).is_err());
+    }
 
     fn base() -> Url {
         Url::parse("https://cdn.example/v/master.m3u8?t=1").unwrap()

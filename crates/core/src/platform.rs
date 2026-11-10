@@ -103,6 +103,9 @@ impl Platform {
     }
 
     pub fn detect(url: &Url) -> Option<Self> {
+        if !matches!(url.scheme(), "http" | "https") {
+            return None;
+        }
         let host = url.host_str()?.to_ascii_lowercase();
         let on = |domain: &&str| host == *domain || host.ends_with(&format!(".{domain}"));
         DOMAINS
@@ -133,7 +136,17 @@ pub(crate) fn parse_url(input: &str) -> Result<Url> {
     } else {
         format!("https://{input}")
     };
-    Url::parse(&full).map_err(|_| Error::Unsupported(input.to_owned()))
+    let url = Url::parse(&full).map_err(|_| Error::Unsupported(input.to_owned()))?;
+    if !matches!(url.scheme(), "http" | "https")
+        || url.host_str().is_none()
+        || !url.username().is_empty()
+        || url.password().is_some()
+    {
+        return Err(Error::Unsupported(
+            "expected an http(s) link without embedded credentials".into(),
+        ));
+    }
+    Ok(url)
 }
 
 #[cfg(test)]
@@ -180,5 +193,17 @@ mod tests {
         );
         assert_eq!(detect("https://notx.com/a/status/1"), None);
         assert_eq!(detect("https://youtube.com/watch?v=1"), None);
+    }
+
+    #[test]
+    fn rejects_non_web_schemes_and_embedded_credentials() {
+        assert!(parse_url("ftp://x.com/a/status/1").is_err());
+        assert!(parse_url("https://user:secret@x.com/a/status/1").is_err());
+        assert_eq!(
+            Platform::detect(&Url::parse("ftp://x.com/a").unwrap()),
+            None
+        );
+        assert_eq!(detect("https://x.com.evil.example/a"), None);
+        assert_eq!(detect("https://evilx.com/a"), None);
     }
 }

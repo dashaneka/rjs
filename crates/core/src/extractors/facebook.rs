@@ -31,16 +31,12 @@ pub(super) async fn extract(client: &Client, url: &Url) -> Result<Vec<Media>> {
 
     let wanted = video_id(&page.url);
     let videos = video_objects(&page.html);
-    let video = videos
-        .iter()
-        .find(|v| wanted.is_some() && v["id"].as_str() == wanted.as_deref())
-        .or_else(|| videos.first())
-        .ok_or_else(|| {
-            fail(
-                Platform::Facebook,
-                "no video found (it may be private or need a login)",
-            )
-        })?;
+    let video = select_video(&videos, wanted.as_deref()).ok_or_else(|| {
+        fail(
+            Platform::Facebook,
+            "no video found (it may be private or need a login)",
+        )
+    })?;
 
     let mut formats = Vec::new();
     for (sd, hd) in URL_KEYS {
@@ -74,6 +70,13 @@ pub(super) async fn extract(client: &Client, url: &Url) -> Result<Vec<Media>> {
     }])
 }
 
+fn select_video<'a>(videos: &'a [Value], wanted: Option<&str>) -> Option<&'a Value> {
+    match wanted {
+        Some(id) => videos.iter().find(|v| v["id"].as_str() == Some(id)),
+        None => videos.first(),
+    }
+}
+
 fn video_id(url: &Url) -> Option<String> {
     let from_query = url
         .query_pairs()
@@ -92,7 +95,9 @@ fn video_objects(html: &str) -> Vec<Value> {
         let needle = format!("\"{sd_key}\":");
         for (pos, _) in html.match_indices(&needle) {
             if let Some(obj) = enclosing_object(html, pos, sd_key)
-                && !found.iter().any(|f| f["id"] == obj["id"])
+                && !obj["id"]
+                    .as_str()
+                    .is_some_and(|id| found.iter().any(|f| f["id"].as_str() == Some(id)))
             {
                 found.push(obj);
             }
@@ -167,6 +172,23 @@ mod tests {
 
         let (title, author) = split_title("1K views · 5 reactions | How to share | Facebook");
         assert_eq!((title.as_deref(), author), (Some("How to share"), None));
+    }
+
+    #[test]
+    fn does_not_select_suggested_video_for_known_id() {
+        let videos = video_objects(
+            r#"<script>{"videos":[{"id":"2","playable_url":"https://v/2"}]}</script>"#,
+        );
+        assert!(select_video(&videos, Some("1")).is_none());
+        assert!(select_video(&videos, None).is_some());
+    }
+
+    #[test]
+    fn retains_distinct_videos_without_ids() {
+        let videos = video_objects(
+            r#"<script>{"videos":[{"playable_url":"https://v/1"},{"playable_url":"https://v/2"}]}</script>"#,
+        );
+        assert_eq!(videos.len(), 2);
     }
 
     #[test]

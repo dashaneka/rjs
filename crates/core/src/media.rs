@@ -139,7 +139,8 @@ impl Format {
     fn short_side(&self) -> Option<u32> {
         match (self.width, self.height) {
             (Some(w), Some(h)) => Some(w.min(h)),
-            (_, h) => h,
+            (Some(w), None) => Some(w),
+            (None, h) => h,
         }
     }
 
@@ -211,10 +212,39 @@ impl Media {
 
     /// Picks a format by its ID (e.g. `play`, `hd`), or by quality: `720` or `720p`
     /// matches the video's shorter side, so it works for portrait videos too.
+    /// Selectors: `best`/`compatible` (default compatibility preference),
+    /// `best-resolution`, `worst`, `audio`/`bestaudio`, and `worstaudio`.
+    /// Audio selectors require an audio-only stream; they do not extract audio.
+    /// The `best` selector retains its default meaning; other exact IDs take
+    /// precedence over selectors and case-insensitive ID fallback.
     pub fn choose(&self, wanted: &str) -> Option<Selection<'_>> {
         let wanted = wanted.trim();
         if wanted.eq_ignore_ascii_case("best") {
             return self.best();
+        }
+        // Preserve access to other exact format IDs, even if they match a selector.
+        if let Some(f) = self.formats.iter().find(|f| f.id == wanted) {
+            return Some(self.with_audio(f));
+        }
+        if wanted.eq_ignore_ascii_case("compatible") {
+            return self.best();
+        }
+        if wanted.eq_ignore_ascii_case("best-resolution") {
+            return self.best_resolution();
+        }
+        if wanted.eq_ignore_ascii_case("audio") || wanted.eq_ignore_ascii_case("bestaudio") {
+            return self.audio(false).map(Selection::Single);
+        }
+        if wanted.eq_ignore_ascii_case("worstaudio") {
+            return self.audio(true).map(Selection::Single);
+        }
+        if wanted.eq_ignore_ascii_case("worst") {
+            let f = self
+                .formats
+                .iter()
+                .filter(|f| f.has_video)
+                .min_by_key(|f| (f.pixels(), f.bitrate.unwrap_or(0)))?;
+            return Some(self.with_audio(f));
         }
         if let Some(f) = self
             .formats
@@ -231,6 +261,142 @@ impl Media {
             .filter(|f| f.has_video && f.short_side() == Some(quality))
             .max_by_key(|f| (f.has_audio, f.rank()))?;
         Some(self.with_audio(f))
+    }
+
+    /// Highest picture resolution, retaining audio whenever an audio stream exists.
+    /// Unlike [`Media::best`], this can prefer HEVC over a smaller H.264 format.
+    pub fn best_resolution(&self) -> Option<Selection<'_>> {
+        let audio = self.audio(false);
+        let has_audible = self
+            .formats
+            .iter()
+            .any(|f| f.has_video && (f.has_audio || audio.is_some()));
+        self.formats
+            .iter()
+            .filter(|f| f.has_video && (!has_audible || f.has_audio || audio.is_some()))
+            .max_by_key(|f| {
+                (
+                    f.pixels(),
+                    f.plays_everywhere(),
+                    f.has_audio,
+                    f.protocol == Protocol::Http,
+                    f.bitrate.unwrap_or(0),
+                )
+            })
+            .map(|f| self.with_audio(f))
+            .or_else(|| self.best())
+    }
+
+    /// Selects using only formats with known sizes whose combined size fits `max_bytes`.
+    /// Unknown sizes are excluded; merged sizes include both streams. This is a
+    /// selection estimate, not a download limit (HLS and server sizes can change).
+    /// Explicit IDs and quality requests are never silently replaced by another quality.
+    pub fn select_with_max_size(
+        &self,
+        wanted: Option<&str>,
+        max_bytes: u64,
+    ) -> Result<Selection<'_>> {
+        let selection = self.select(wanted)?;
+        let fits = |selection: Selection<'_>| match selection {
+            Selection::Single(f) => f.size.is_some_and(|size| size <= max_bytes),
+            Selection::Merge { video, audio } => video
+                .size
+                .zip(audio.size)
+                .and_then(|(v, a)| v.checked_add(a))
+                .is_some_and(|size| size <= max_bytes),
+        };
+        if fits(selection) {
+            return Ok(selection);
+        }
+        let allow_silent = matches!(selection, Selection::Single(f) if f.has_video && !f.has_audio);
+        let selector = if self.kind == MediaKind::Image {
+            "best"
+        } else {
+            wanted.unwrap_or("best").trim()
+        };
+        let exact =
+            !selector.eq_ignore_ascii_case("best") && self.formats.iter().any(|f| f.id == selector);
+        if !exact
+            && ["best", "compatible", "best-resolution"]
+                .iter()
+                .any(|s| selector.eq_ignore_ascii_case(s))
+        {
+            let mut candidates = Vec::new();
+            for f in &self.formats {
+                if self.kind == MediaKind::Video && !f.has_video {
+                    continue;
+                }
+                if f.has_video && !f.has_audio {
+                    if allow_silent && fits(Selection::Single(f)) {
+                        candidates.push(Selection::Single(f));
+                    }
+                    for audio in self.formats.iter().filter(|a| a.has_audio && !a.has_video) {
+                        let candidate = Selection::Merge { video: f, audio };
+                        if fits(candidate) {
+                            candidates.push(candidate);
+                        }
+                    }
+                } else if fits(Selection::Single(f)) {
+                    candidates.push(Selection::Single(f));
+                }
+            }
+            let audible_video = candidates.iter().any(|s| match s {
+                Selection::Merge { .. } => true,
+                Selection::Single(f) => f.has_video && f.has_audio,
+            });
+            let resolution_first = selector.eq_ignore_ascii_case("best-resolution");
+            let best = candidates
+                .into_iter()
+                .filter(|s| {
+                    !audible_video
+                        || match s {
+                            Selection::Merge { .. } => true,
+                            Selection::Single(f) => f.has_video && f.has_audio,
+                        }
+                })
+                .max_by_key(|s| {
+                    let (f, muxed, audio_rate) = match s {
+                        Selection::Single(f) => (*f, true, 0),
+                        Selection::Merge { video, audio } => {
+                            (*video, false, audio.bitrate.unwrap_or(0))
+                        }
+                    };
+                    let compatible = u64::from(f.plays_everywhere());
+                    (
+                        if resolution_first {
+                            f.pixels()
+                        } else {
+                            compatible
+                        },
+                        if resolution_first {
+                            compatible
+                        } else {
+                            f.pixels()
+                        },
+                        muxed,
+                        f.protocol == Protocol::Http,
+                        f.bitrate.unwrap_or(0),
+                        audio_rate,
+                    )
+                });
+            if let Some(best) = best {
+                return Ok(best);
+            }
+        }
+        Err(fail(
+            self.platform,
+            format!("no matching format with a known size at most {max_bytes} bytes"),
+        ))
+    }
+
+    // Audio quality is bitrate-based; dimensions on audio entries are irrelevant.
+    fn audio(&self, worst: bool) -> Option<&Format> {
+        let streams = self.formats.iter().filter(|f| f.has_audio && !f.has_video);
+        if worst {
+            streams.min_by_key(|f| f.bitrate.unwrap_or(0))
+        } else {
+            streams.max_by_key(|f| f.bitrate.unwrap_or(0))
+        }
     }
 
     /// Adds the best audio stream to a video-only format.
@@ -386,6 +552,133 @@ mod tests {
             audio,
         ]);
         assert!(matches!(m.best(), Some(Selection::Single(f)) if f.id == "muxed"));
+    }
+
+    #[test]
+    fn named_selectors_keep_audio_and_support_audio_only() {
+        let video = Format {
+            has_audio: false,
+            ..sized("hi", 1920, 1080)
+        };
+        let low = sized("low", 640, 360);
+        let audio = |id, bitrate| Format {
+            has_video: false,
+            bitrate: Some(bitrate),
+            ..Format::mp4(id, id)
+        };
+        let m = media(vec![
+            low,
+            video,
+            audio("a-low", 64000),
+            audio("a-high", 128000),
+        ]);
+        assert!(
+            matches!(m.choose("best-resolution"), Some(Selection::Merge { video, audio }) if video.id == "hi" && audio.id == "a-high")
+        );
+        assert!(matches!(m.choose("worst"), Some(Selection::Single(f)) if f.id == "low"));
+        assert!(matches!(m.choose("bestaudio"), Some(Selection::Single(f)) if f.id == "a-high"));
+        assert!(matches!(m.choose("worstaudio"), Some(Selection::Single(f)) if f.id == "a-low"));
+        assert!(
+            media(vec![sized("muxed", 640, 360)])
+                .choose("audio")
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn best_selector_preserves_default_even_if_id_is_best() {
+        let m = media(vec![sized("best", 640, 360), sized("hd", 1920, 1080)]);
+        assert!(matches!(m.choose("best"), Some(Selection::Single(f)) if f.id == "hd"));
+    }
+
+    #[test]
+    fn size_selection_accounts_for_both_streams() {
+        let m = media(vec![
+            Format {
+                size: Some(80),
+                has_audio: false,
+                ..sized("video", 1920, 1080)
+            },
+            Format {
+                size: Some(30),
+                has_video: false,
+                ..Format::mp4("audio", "audio")
+            },
+            Format {
+                size: Some(90),
+                ..sized("muxed", 640, 360)
+            },
+        ]);
+        assert!(
+            matches!(m.select_with_max_size(None, 100), Ok(Selection::Single(f)) if f.id == "muxed")
+        );
+        assert!(m.select_with_max_size(Some("video"), 100).is_err());
+        assert!(matches!(
+            m.select_with_max_size(None, 110),
+            Ok(Selection::Merge { .. })
+        ));
+    }
+
+    #[test]
+    fn size_fallback_preserves_video_and_handles_silent_video() {
+        let m = media(vec![
+            Format {
+                size: Some(110),
+                ..sized("muxed", 1920, 1080)
+            },
+            Format {
+                size: Some(5),
+                has_video: false,
+                ..Format::mp4("audio", "audio")
+            },
+        ]);
+        assert!(m.select_with_max_size(None, 10).is_err());
+        let m = media(vec![
+            Format {
+                size: Some(110),
+                has_audio: false,
+                ..sized("large", 1920, 1080)
+            },
+            Format {
+                size: Some(10),
+                has_audio: false,
+                ..sized("small", 640, 360)
+            },
+        ]);
+        assert!(
+            matches!(m.select_with_max_size(None, 10), Ok(Selection::Single(f)) if f.id == "small")
+        );
+        assert!(m.select_with_max_size(None, 9).is_err());
+    }
+
+    #[test]
+    fn size_fallback_excludes_unknown_and_overflowed_sizes() {
+        let m = media(vec![
+            Format {
+                size: None,
+                ..sized("unknown", 1920, 1080)
+            },
+            Format {
+                size: Some(10),
+                ..sized("known", 640, 360)
+            },
+        ]);
+        assert!(
+            matches!(m.select_with_max_size(None, 10), Ok(Selection::Single(f)) if f.id == "known")
+        );
+        let m = media(vec![
+            Format {
+                size: Some(u64::MAX),
+                has_audio: false,
+                ..sized("video", 1920, 1080)
+            },
+            Format {
+                size: Some(1),
+                has_video: false,
+                ..Format::mp4("audio", "audio")
+            },
+        ]);
+        assert!(m.select_with_max_size(None, u64::MAX).is_err());
     }
 
     #[test]

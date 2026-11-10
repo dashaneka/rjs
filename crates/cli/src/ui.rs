@@ -117,7 +117,7 @@ pub fn skipped(label: &str, path: &Path) {
 }
 
 pub fn item_failed(label: &str, error: &Error) {
-    println!(
+    eprintln!(
         "  {} {:<LABEL$} {}",
         style("✗").red().bold(),
         label,
@@ -131,11 +131,11 @@ pub fn failed(link: &str, error: &Error) {
         Error::Cookies(_) => style("Couldn't load logins").red().bold().to_string(),
         _ => style("Couldn't download").red().bold().to_string(),
     };
-    println!();
-    println!(" {} {}", style("✗").red().bold(), heading);
-    println!("   {}", message(error));
+    eprintln!();
+    eprintln!(" {} {}", style("✗").red().bold(), heading);
+    eprintln!("   {}", message(error));
     if !link.is_empty() {
-        println!("   {}", style(truncate_str(link, width() - 4, "…")).dim());
+        eprintln!("   {}", style(truncate_str(link, width() - 4, "…")).dim());
     }
 }
 
@@ -295,13 +295,13 @@ pub fn hint(text: &str) {
 }
 
 /// Progress bar for one file; stays invisible until the download actually starts.
-pub struct Bar(ProgressBar);
+pub struct Bar(ProgressBar, bool);
 
 impl Bar {
-    pub fn new(label: &str) -> Self {
+    pub fn new(label: &str, quiet: bool) -> Self {
         let bar = ProgressBar::hidden();
         bar.set_prefix(label.to_owned());
-        Self(bar)
+        Self(bar, quiet)
     }
 
     pub fn clear(&self) {
@@ -311,6 +311,9 @@ impl Bar {
 
 impl Progress for Bar {
     fn start(&self, part: &str, total: Option<u64>, already: u64) {
+        if self.1 {
+            return;
+        }
         let bar = &self.0;
         bar.set_draw_target(ProgressDrawTarget::stderr());
         bar.reset();

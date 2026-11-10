@@ -271,10 +271,7 @@ fn scope_from_html(html: &str, url: &Url) -> Option<Value> {
         .unwrap()
     });
     let canonical = canonical_post_url(url)?;
-    let id = canonical
-        .path_segments()?
-        .filter(|s| !s.is_empty())
-        .next_back()?;
+    let id = canonical.path_segments()?.rfind(|s| !s.is_empty())?;
     let data = SIGI
         .captures(html)
         .and_then(|c| serde_json::from_str::<Value>(&c[1]).ok())?;
@@ -546,6 +543,14 @@ fn format_metadata(
     (codec, width, height, bitrate)
 }
 
+fn is_video_only(url: &str) -> bool {
+    Url::parse(url).is_ok_and(|u| {
+        u.path()
+            .trim_end_matches('/')
+            .ends_with("/media-video-hvc1")
+    })
+}
+
 fn video_formats(video: &Value) -> Vec<Format> {
     let mut formats = Vec::new();
     // Watermarked download URLs are a last resort, below normal playback formats.
@@ -557,6 +562,11 @@ fn video_formats(video: &Value) -> Vec<Format> {
         formats.push(Format::mp4(format!("download-watermarked-{i}"), url));
     }
     for (i, url) in media_urls(&video["playAddr"]).into_iter().enumerate() {
+        if text(video, "/codecType").is_some_and(|codec| codec.eq_ignore_ascii_case("bytevc2"))
+            || is_video_only(&url)
+        {
+            continue;
+        }
         formats.push(Format {
             width: dimension(video, "/width"),
             height: dimension(video, "/height"),
@@ -580,7 +590,11 @@ fn video_formats(video: &Value) -> Vec<Format> {
     {
         let (codec, width, height, bitrate) = format_metadata(quality, video);
         // bytevc2 is a proprietary codec normal media players cannot decode.
-        if codec.as_deref() == Some("bytevc2") {
+        if codec
+            .as_deref()
+            .is_some_and(|c| c.eq_ignore_ascii_case("bytevc2"))
+            || text(quality, "/CodecType").is_some_and(|c| c.eq_ignore_ascii_case("bytevc2"))
+        {
             continue;
         }
         let urls = media_urls(&quality["PlayAddr"]);
@@ -605,8 +619,7 @@ fn video_formats(video: &Value) -> Vec<Format> {
             .rev()
             .chain(std::iter::once((0, primary)))
         {
-            let has_audio =
-                !Url::parse(url).is_ok_and(|u| u.path().ends_with("/media-video-hvc1/"));
+            let has_audio = !is_video_only(url);
             if !has_audio {
                 continue;
             }
@@ -690,6 +703,23 @@ mod tests {
             (Some(720), Some(1280), Some(1200000))
         );
         assert_eq!(f.codec.as_deref(), Some("h264"));
+    }
+
+    #[test]
+    fn excludes_unsupported_and_video_only_default_urls() {
+        let formats = video_formats(&json!({
+            "codecType": "ByteVC2",
+            "playAddr": "https://cdn.example/unsupported",
+            "bitrateInfo": [{"CodecType": "bytevc2", "PlayAddr": {
+                "UrlKey": "v123_h264_720p_1200000",
+                "UrlList": ["https://cdn.example/conflicting"]
+            }}]
+        }));
+        assert!(formats.is_empty());
+        let formats = video_formats(&json!({
+            "playAddr": "https://cdn.example/media-video-hvc1?token=1"
+        }));
+        assert!(formats.is_empty());
     }
 
     #[test]
