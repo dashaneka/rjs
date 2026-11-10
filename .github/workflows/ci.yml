@@ -15,14 +15,19 @@ jobs:
         with:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
-      - name: install media tools
-        timeout-minutes: 3
+      - name: provide ffmpeg for media tests
+        timeout-minutes: 2
         run: |
-          if command -v ffmpeg >/dev/null && command -v ffprobe >/dev/null; then
+          if command -v ffmpeg >/dev/null; then
             ffmpeg -version
           else
-            sudo apt-get -o Acquire::Retries=1 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 update
-            sudo apt-get -o Acquire::Retries=1 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 install -y ffmpeg
+            python3 -m venv "$RUNNER_TEMP/rjs-media-tools"
+            "$RUNNER_TEMP/rjs-media-tools/bin/python" -m pip install --disable-pip-version-check --only-binary=:all: --retries 1 --timeout 20 imageio-ffmpeg==0.6.0
+            mkdir -p "$RUNNER_TEMP/rjs-media-bin"
+            rjs_ffmpeg_path=$("$RUNNER_TEMP/rjs-media-tools/bin/python" -c 'import imageio_ffmpeg; print(imageio_ffmpeg.get_ffmpeg_exe())')
+            ln -s "$rjs_ffmpeg_path" "$RUNNER_TEMP/rjs-media-bin/ffmpeg"
+            echo "$RUNNER_TEMP/rjs-media-bin" >> "$GITHUB_PATH"
+            "$rjs_ffmpeg_path" -version
           fi
       - run: cargo fmt --all --check
       - name: compile rust tests
