@@ -97,6 +97,12 @@ impl Client {
                 .cookie_provider(jar.clone())
                 .connect_timeout(settings.connect_timeout)
                 .read_timeout(settings.read_timeout);
+            // Loopback fixtures must not depend on a runner's proxy environment.
+            // Explicit proxies configured below still work in proxy-specific tests.
+            #[cfg(test)]
+            {
+                builder = builder.no_proxy();
+            }
             if let Some(proxy) = &proxy {
                 builder = builder.proxy(proxy.clone());
             }
@@ -336,18 +342,13 @@ mod tests {
 
     #[tokio::test]
     async fn configured_page_retries_transient_server_error_and_sends_user_agent() {
-        use std::io::{Read, Write};
+        use std::io::Write;
         let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         let url = format!("http://{}/page", listener.local_addr().unwrap());
         let server = std::thread::spawn(move || {
             for status in ["503 Service Unavailable", "200 OK"] {
-                let (mut socket, _) = listener.accept().unwrap();
-                let mut request = Vec::new();
-                let mut byte = [0];
-                while !request.ends_with(b"\r\n\r\n") {
-                    socket.read_exact(&mut byte).unwrap();
-                    request.push(byte[0]);
-                }
+                let mut socket = crate::test_http::accept(&listener).unwrap();
+                let request = crate::test_http::request(&mut socket).unwrap();
                 assert!(
                     String::from_utf8(request)
                         .unwrap()

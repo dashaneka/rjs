@@ -428,16 +428,15 @@ mod tests {
 
     #[tokio::test]
     async fn fetches_valid_local_http_byte_range() {
-        use std::io::{Read, Write};
+        use std::io::Write;
         use std::net::TcpListener;
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let url = Url::parse(&format!("http://{}/piece", listener.local_addr().unwrap())).unwrap();
         let server = std::thread::spawn(move || {
-            let (mut socket, _) = listener.accept().unwrap();
-            let mut request = [0; 2048];
-            let n = socket.read(&mut request).unwrap();
+            let mut socket = crate::test_http::accept(&listener).unwrap();
+            let request = crate::test_http::request(&mut socket).unwrap();
             assert!(
-                String::from_utf8_lossy(&request[..n])
+                String::from_utf8_lossy(&request)
                     .to_ascii_lowercase()
                     .contains("range: bytes=1-2")
             );

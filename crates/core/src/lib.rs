@@ -21,6 +21,8 @@ mod extractors;
 mod media;
 mod platform;
 mod profile;
+#[cfg(test)]
+mod test_http;
 
 pub use cancel::CancellationToken;
 pub use client::{Client, ClientBuilder};

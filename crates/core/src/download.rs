@@ -730,7 +730,7 @@ mod tests {
 
     #[tokio::test]
     async fn validates_ranges_and_resumes_local_http_response() {
-        use std::io::{Read, Write};
+        use std::io::Write;
         use std::net::TcpListener;
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let url = format!("http://{}/video", listener.local_addr().unwrap());
@@ -739,10 +739,8 @@ mod tests {
                 "HTTP/1.1 206 Partial Content\r\nContent-Range: bytes 1-2/4\r\nContent-Length: 2\r\nConnection: close\r\n\r\nbc",
                 "HTTP/1.1 206 Partial Content\r\nContent-Range: bytes 2-3/4\r\nContent-Length: 2\r\nConnection: close\r\n\r\ncd",
             ] {
-                let (mut socket, _) = listener.accept().unwrap();
-                let mut request = [0; 2048];
-                let read = socket.read(&mut request).unwrap();
-                assert!(read > 0);
+                let mut socket = crate::test_http::accept(&listener).unwrap();
+                crate::test_http::request(&mut socket).unwrap();
                 socket.write_all(response.as_bytes()).unwrap();
             }
         });
@@ -784,16 +782,15 @@ mod tests {
     fn local_server(
         responses: Vec<&'static str>,
     ) -> (String, std::thread::JoinHandle<Vec<String>>) {
-        use std::io::{Read, Write};
+        use std::io::Write;
         let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         let url = format!("http://{}/video", listener.local_addr().unwrap());
         let server = std::thread::spawn(move || {
             let mut requests = Vec::new();
             for response in responses {
-                let (mut socket, _) = listener.accept().unwrap();
-                let mut data = [0; 4096];
-                let n = socket.read(&mut data).unwrap();
-                requests.push(String::from_utf8_lossy(&data[..n]).to_ascii_lowercase());
+                let mut socket = crate::test_http::accept(&listener).unwrap();
+                let data = crate::test_http::request(&mut socket).unwrap();
+                requests.push(String::from_utf8_lossy(&data).to_ascii_lowercase());
                 socket.write_all(response.as_bytes()).unwrap();
             }
             requests
