@@ -1,0 +1,113 @@
+{
+  "yt_dlp_version": "2026.10.26",
+  "fixtures": [
+    {
+      "platform": "eporner",
+      "source_file": "eporner.py",
+      "source_class": "EpornerIE",
+      "test_index": 0
+    },
+    {
+      "platform": "eporner",
+      "source_file": "eporner.py",
+      "source_class": "EpornerIE",
+      "test_index": 1
+    },
+    {
+      "platform": "xhamster",
+      "source_file": "xhamster.py",
+      "source_class": "XHamsterEmbedIE",
+      "test_index": 0
+    },
+    {
+      "platform": "xhamster",
+      "source_file": "xhamster.py",
+      "source_class": "XHamsterIE",
+      "test_index": 1
+    },
+    {
+      "platform": "pornhub",
+      "source_file": "pornhub.py",
+      "source_class": "PornHubIE",
+      "test_index": 0
+    },
+    {
+      "platform": "pornhub",
+      "source_file": "pornhub.py",
+      "source_class": "PornHubIE",
+      "test_index": 3
+    },
+    {
+      "platform": "youporn",
+      "source_file": "youporn.py",
+      "source_class": "YouPornIE",
+      "test_index": 5
+    },
+    {
+      "platform": "youporn",
+      "source_file": "youporn.py",
+      "source_class": "YouPornIE",
+      "test_index": 4
+    },
+    {
+      "platform": "redtube",
+      "source_file": "redtube.py",
+      "source_class": "RedTubeIE",
+      "test_index": 0
+    },
+    {
+      "platform": "redtube",
+      "source_file": "redtube.py",
+      "source_class": "RedTubeIE",
+      "test_index": 1
+    },
+    {
+      "platform": "spankbang",
+      "source_file": "spankbang.py",
+      "source_class": "SpankBangIE",
+      "test_index": 0
+    },
+    {
+      "platform": "spankbang",
+      "source_file": "spankbang.py",
+      "source_class": "SpankBangIE",
+      "test_index": 1
+    },
+    {
+      "platform": "xvideos",
+      "source_file": "xvideos.py",
+      "source_class": "XVideosQuickiesIE",
+      "test_index": 3
+    },
+    {
+      "platform": "xvideos",
+      "source_file": "xvideos.py",
+      "source_class": "XVideosIE",
+      "test_index": 1
+    },
+    {
+      "platform": "xnxx",
+      "source_file": "xnxx.py",
+      "source_class": "XNXXIE",
+      "test_index": 0
+    },
+    {
+      "platform": "xnxx",
+      "source_file": "xnxx.py",
+      "source_class": "XNXXIE",
+      "test_index": 1
+    },
+    {
+      "platform": "facebook",
+      "source_file": "facebook.py",
+      "source_class": "FacebookIE",
+      "test_index": 0
+    },
+    {
+      "platform": "facebook",
+      "source_file": "facebook.py",
+      "source_class": "FacebookIE",
+      "test_index": 2
+    }
+  ]
+}

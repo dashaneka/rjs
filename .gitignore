@@ -3,3 +3,7 @@
 *.mp4
 __pycache__/
 *.pyc
+/discovery/
+/benchmarks/remaining-corpus.json
+/benchmarks/local-*.json
+/benchmarks/private/

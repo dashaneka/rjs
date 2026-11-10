@@ -1,0 +1,532 @@
+{
+  "started_at_utc": "2026-11-10T10:52:11.945519+00:00",
+  "finished_at_utc": "2026-11-10T10:53:17.613729+00:00",
+  "versions": {
+    "rjs": "0.1.0",
+    "yt_dlp": "2026.10.26"
+  },
+  "optional_dependencies": {
+    "curl_cffi": "0.17.0"
+  },
+  "entries": 18,
+  "metadata_pair_successes": 0,
+  "verified_same_file_downloads": 0,
+  "results": [
+    {
+      "platform": "eporner",
+      "rjs": {
+        "status": "exit_error",
+        "exit_code": 1,
+        "failure_class": "other"
+      },
+      "yt_dlp": {
+        "status": "exit_error",
+        "exit_code": 1,
+        "failure_class": "http_404"
+      },
+      "metadata_pair_success": false,
+      "selection": {
+        "status": "unsupported"
+      },
+      "verified_same_file_download": false,
+      "fixture": {
+        "platform": "eporner",
+        "source_file": "eporner.py",
+        "source_class": "EpornerIE",
+        "test_index": 0
+      },
+      "input_url_sha256": "51ab5603372c7dc89bfecabc54dc22243bcc343a7222d99fc278147a4415f8ae"
+    },
+    {
+      "platform": "eporner",
+      "rjs": {
+        "status": "exit_error",
+        "exit_code": 1,
+        "failure_class": "other"
+      },
+      "yt_dlp": {
+        "status": "exit_error",
+        "exit_code": 1,
+        "failure_class": "http_404"
+      },
+      "metadata_pair_success": false,
+      "selection": {
+        "status": "unsupported"
+      },
+      "verified_same_file_download": false,
+      "fixture": {
+        "platform": "eporner",
+        "source_file": "eporner.py",
+        "source_class": "EpornerIE",
+        "test_index": 1
+      },
+      "input_url_sha256": "1d2a585ca946a0adc88c35540afc4da13bac91fde9ac040f425396f0437d2ca3"
+    },
+    {
+      "platform": "xhamster",
+      "rjs": {
+        "status": "exit_error",
+        "exit_code": 1,
+        "failure_class": "other"
+      },
+      "yt_dlp": {
+        "status": "exit_error",
+        "exit_code": 1,
+        "failure_class": "http_404"
+      },
+      "metadata_pair_success": false,
+      "selection": {
+        "status": "unsupported"
+      },
+      "verified_same_file_download": false,
+      "fixture": {
+        "platform": "xhamster",
+        "source_file": "xhamster.py",
+        "source_class": "XHamsterEmbedIE",
+        "test_index": 0
+      },
+      "input_url_sha256": "4b1525aabecc82df984c7f8f091a2f36ed79e46677c940b382be13fb27da9fad"
+    },
+    {
+      "platform": "xhamster",
+      "rjs": {
+        "status": "exit_error",
+        "exit_code": 1,
+        "failure_class": "other"
+      },
+      "yt_dlp": {
+        "status": "exit_error",
+        "exit_code": 1,
+        "failure_class": "other"
+      },
+      "metadata_pair_success": false,
+      "selection": {
+        "status": "unsupported"
+      },
+      "verified_same_file_download": false,
+      "fixture": {
+        "platform": "xhamster",
+        "source_file": "xhamster.py",
+        "source_class": "XHamsterIE",
+        "test_index": 1
+      },
+      "input_url_sha256": "2610deedbaf60c0b2edf02ac9da2277793ecc52589024c091f2597689fc16fdf"
+    },
+    {
+      "platform": "pornhub",
+      "rjs": {
+        "status": "exit_error",
+        "exit_code": 1,
+        "failure_class": "other"
+      },
+      "yt_dlp": {
+        "status": "exit_error",
+        "exit_code": 1,
+        "failure_class": "other"
+      },
+      "metadata_pair_success": false,
+      "selection": {
+        "status": "unsupported"
+      },
+      "verified_same_file_download": false,
+      "fixture": {
+        "platform": "pornhub",
+        "source_file": "pornhub.py",
+        "source_class": "PornHubIE",
+        "test_index": 0
+      },
+      "input_url_sha256": "3e8affdec91216300f357801d50cfdf692b9b6e29dae4ee68b44310ae0947a68"
+    },
+    {
+      "platform": "pornhub",
+      "rjs": {
+        "status": "exit_error",
+        "exit_code": 1,
+        "failure_class": "other"
+      },
+      "yt_dlp": {
+        "status": "exit_error",
+        "exit_code": 1,
+        "failure_class": "other"
+      },
+      "metadata_pair_success": false,
+      "selection": {
+        "status": "unsupported"
+      },
+      "verified_same_file_download": false,
+      "fixture": {
+        "platform": "pornhub",
+        "source_file": "pornhub.py",
+        "source_class": "PornHubIE",
+        "test_index": 3
+      },
+      "input_url_sha256": "ec75adae533f5acbcb73e54bb23e3acb28496351bb6d9d0caca7d5187c056e4b"
+    },
+    {
+      "platform": "youporn",
+      "rjs": {
+        "status": "exit_error",
+        "exit_code": 1,
+        "failure_class": "other"
+      },
+      "yt_dlp": {
+        "status": "exit_error",
+        "exit_code": 1,
+        "failure_class": "tls_error"
+      },
+      "metadata_pair_success": false,
+      "selection": {
+        "status": "unsupported"
+      },
+      "verified_same_file_download": false,
+      "fixture": {
+        "platform": "youporn",
+        "source_file": "youporn.py",
+        "source_class": "YouPornIE",
+        "test_index": 5
+      },
+      "input_url_sha256": "affcf7a5d5d1b3993389d7343728f86b147995b1977d7f47dd756d4030647bf4"
+    },
+    {
+      "platform": "youporn",
+      "rjs": {
+        "status": "exit_error",
+        "exit_code": 1,
+        "failure_class": "other"
+      },
+      "yt_dlp": {
+        "status": "exit_error",
+        "exit_code": 1,
+        "failure_class": "tls_error"
+      },
+      "metadata_pair_success": false,
+      "selection": {
+        "status": "unsupported"
+      },
+      "verified_same_file_download": false,
+      "fixture": {
+        "platform": "youporn",
+        "source_file": "youporn.py",
+        "source_class": "YouPornIE",
+        "test_index": 4
+      },
+      "input_url_sha256": "e454f5ae935f73978d0363e10b691bbaee6d2a6e2cc5b26ba08f6c35f7a88862"
+    },
+    {
+      "platform": "redtube",
+      "rjs": {
+        "status": "exit_error",
+        "exit_code": 1,
+        "failure_class": "other"
+      },
+      "yt_dlp": {
+        "status": "exit_error",
+        "exit_code": 1,
+        "failure_class": "tls_error"
+      },
+      "metadata_pair_success": false,
+      "selection": {
+        "status": "unsupported"
+      },
+      "verified_same_file_download": false,
+      "fixture": {
+        "platform": "redtube",
+        "source_file": "redtube.py",
+        "source_class": "RedTubeIE",
+        "test_index": 0
+      },
+      "input_url_sha256": "df23430410b9d72a855c38d8a39c76aedac42d797772c5c80eb2d1c8cee115b0"
+    },
+    {
+      "platform": "redtube",
+      "rjs": {
+        "status": "exit_error",
+        "exit_code": 1,
+        "failure_class": "other"
+      },
+      "yt_dlp": {
+        "status": "exit_error",
+        "exit_code": 1,
+        "failure_class": "tls_error"
+      },
+      "metadata_pair_success": false,
+      "selection": {
+        "status": "unsupported"
+      },
+      "verified_same_file_download": false,
+      "fixture": {
+        "platform": "redtube",
+        "source_file": "redtube.py",
+        "source_class": "RedTubeIE",
+        "test_index": 1
+      },
+      "input_url_sha256": "d473bb3c6f6869526fa23883aa925c919d6a1290bb1fb4f9837d1552aa81fd68"
+    },
+    {
+      "platform": "spankbang",
+      "rjs": {
+        "status": "exit_error",
+        "exit_code": 1,
+        "failure_class": "other"
+      },
+      "yt_dlp": {
+        "status": "exit_error",
+        "exit_code": 1,
+        "failure_class": "other"
+      },
+      "metadata_pair_success": false,
+      "selection": {
+        "status": "unsupported"
+      },
+      "verified_same_file_download": false,
+      "fixture": {
+        "platform": "spankbang",
+        "source_file": "spankbang.py",
+        "source_class": "SpankBangIE",
+        "test_index": 0
+      },
+      "input_url_sha256": "8f4cedfd8fea0c47fe375126af185e85c83fb94d0fea6b1af4f5ee7a7c27108f"
+    },
+    {
+      "platform": "spankbang",
+      "rjs": {
+        "status": "exit_error",
+        "exit_code": 1,
+        "failure_class": "other"
+      },
+      "yt_dlp": {
+        "status": "exit_error",
+        "exit_code": 1,
+        "failure_class": "http_404"
+      },
+      "metadata_pair_success": false,
+      "selection": {
+        "status": "unsupported"
+      },
+      "verified_same_file_download": false,
+      "fixture": {
+        "platform": "spankbang",
+        "source_file": "spankbang.py",
+        "source_class": "SpankBangIE",
+        "test_index": 1
+      },
+      "input_url_sha256": "818f8f8947622cb13b9f4202a76970abe21f7fa8bc2203e4978a272d589a29d5"
+    },
+    {
+      "platform": "xvideos",
+      "rjs": {
+        "status": "exit_error",
+        "exit_code": 1,
+        "failure_class": "other"
+      },
+      "yt_dlp": {
+        "status": "exit_error",
+        "exit_code": 1,
+        "failure_class": "tls_error"
+      },
+      "metadata_pair_success": false,
+      "selection": {
+        "status": "unsupported"
+      },
+      "verified_same_file_download": false,
+      "fixture": {
+        "platform": "xvideos",
+        "source_file": "xvideos.py",
+        "source_class": "XVideosQuickiesIE",
+        "test_index": 3
+      },
+      "input_url_sha256": "102376f676df51800d6d1af1b30c08df5b914dd44c577473bf3592bab78fdd51"
+    },
+    {
+      "platform": "xvideos",
+      "rjs": {
+        "status": "exit_error",
+        "exit_code": 1,
+        "failure_class": "other"
+      },
+      "yt_dlp": {
+        "status": "exit_error",
+        "exit_code": 1,
+        "failure_class": "tls_error"
+      },
+      "metadata_pair_success": false,
+      "selection": {
+        "status": "unsupported"
+      },
+      "verified_same_file_download": false,
+      "fixture": {
+        "platform": "xvideos",
+        "source_file": "xvideos.py",
+        "source_class": "XVideosIE",
+        "test_index": 1
+      },
+      "input_url_sha256": "2bafd283b0d2ec553659ff7e4f3a5cd84f45ab52ec4a98bc2a46c0ba43ff0477"
+    },
+    {
+      "platform": "xnxx",
+      "rjs": {
+        "status": "exit_error",
+        "exit_code": 1,
+        "failure_class": "other"
+      },
+      "yt_dlp": {
+        "status": "exit_error",
+        "exit_code": 1,
+        "failure_class": "http_404"
+      },
+      "metadata_pair_success": false,
+      "selection": {
+        "status": "unsupported"
+      },
+      "verified_same_file_download": false,
+      "fixture": {
+        "platform": "xnxx",
+        "source_file": "xnxx.py",
+        "source_class": "XNXXIE",
+        "test_index": 0
+      },
+      "input_url_sha256": "d58516d51927316b1cfe5abb08505e422cc863f8996882599bb76339d1aa29bf"
+    },
+    {
+      "platform": "xnxx",
+      "rjs": {
+        "status": "exit_error",
+        "exit_code": 1,
+        "failure_class": "other"
+      },
+      "yt_dlp": {
+        "status": "exit_error",
+        "exit_code": 1,
+        "failure_class": "http_404"
+      },
+      "metadata_pair_success": false,
+      "selection": {
+        "status": "unsupported"
+      },
+      "verified_same_file_download": false,
+      "fixture": {
+        "platform": "xnxx",
+        "source_file": "xnxx.py",
+        "source_class": "XNXXIE",
+        "test_index": 1
+      },
+      "input_url_sha256": "bb0841324df0a4731d9120e61ea2bea8eb5ddd02a0385235ed45349c20cc0cbc"
+    },
+    {
+      "platform": "facebook",
+      "rjs": {
+        "status": "exit_error",
+        "exit_code": 1,
+        "failure_class": "other"
+      },
+      "yt_dlp": {
+        "status": "exit_error",
+        "exit_code": 1,
+        "failure_class": "tls_error"
+      },
+      "metadata_pair_success": false,
+      "selection": {
+        "status": "unsupported"
+      },
+      "verified_same_file_download": false,
+      "fixture": {
+        "platform": "facebook",
+        "source_file": "facebook.py",
+        "source_class": "FacebookIE",
+        "test_index": 0
+      },
+      "input_url_sha256": "e39d8036acfe751853c64bb845ee6af831e20c1dd0ee6ac706c08d14d3e4de5b"
+    },
+    {
+      "platform": "facebook",
+      "rjs": {
+        "status": "exit_error",
+        "exit_code": 1,
+        "failure_class": "other"
+      },
+      "yt_dlp": {
+        "status": "exit_error",
+        "exit_code": 1,
+        "failure_class": "tls_error"
+      },
+      "metadata_pair_success": false,
+      "selection": {
+        "status": "unsupported"
+      },
+      "verified_same_file_download": false,
+      "fixture": {
+        "platform": "facebook",
+        "source_file": "facebook.py",
+        "source_class": "FacebookIE",
+        "test_index": 2
+      },
+      "input_url_sha256": "9d29bf5ffc63c2ff80947391ea56ba262c8447afd40f0e174f6b61b055fe0284"
+    }
+  ],
+  "interpretation": "metadata attempts only; no additional matched-file downloads were possible; failures do not establish site-wide failure or a speed comparison",
+  "prior_verified_platforms": 4,
+  "supported_platforms": 13,
+  "verified_platform_percentage": 30.8,
+  "homepage_observations": {
+    "pornhub": {
+      "http_status": 200,
+      "body_bytes": 195,
+      "body_sha256": "5b131ca14aa96311d3432b0062c7443d3b0e6346ec279bd376a75f0a76bcd5d7",
+      "body_retained": true,
+      "site_unavailable_message_verified": true
+    },
+    "youporn": {
+      "http_status": 200,
+      "body_bytes": 195,
+      "body_sha256": "5b131ca14aa96311d3432b0062c7443d3b0e6346ec279bd376a75f0a76bcd5d7",
+      "body_retained": true,
+      "site_unavailable_message_verified": true
+    },
+    "redtube": {
+      "http_status": 200,
+      "body_bytes": 195,
+      "body_sha256": "5b131ca14aa96311d3432b0062c7443d3b0e6346ec279bd376a75f0a76bcd5d7",
+      "body_retained": true,
+      "site_unavailable_message_verified": true
+    },
+    "eporner": {
+      "http_status": 200,
+      "body_bytes": 195,
+      "body_retained": false,
+      "site_unavailable_message_verified": false,
+      "observation": "no public video anchors; exact response body was not retained"
+    },
+    "xhamster": {
+      "http_status": 200,
+      "body_bytes": 195,
+      "body_retained": false,
+      "site_unavailable_message_verified": false,
+      "observation": "no public video anchors; exact response body was not retained"
+    },
+    "spankbang": {
+      "http_status": 200,
+      "body_bytes": 195,
+      "body_retained": false,
+      "site_unavailable_message_verified": false,
+      "observation": "no public video anchors; exact response body was not retained"
+    },
+    "xvideos": {
+      "body_retained": false,
+      "site_unavailable_message_verified": false,
+      "observation": "no matching public video anchors were reported; body size and exact response were not retained"
+    },
+    "xnxx": {
+      "body_retained": false,
+      "site_unavailable_message_verified": false,
+      "observation": "no matching public video anchors were reported; body size and exact response were not retained"
+    }
+  },
+  "coverage": {
+    "attempted_platforms": 13,
+    "supported_platforms": 13,
+    "attempted_percentage": 100.0,
+    "matched_file_verified_platforms": 4,
+    "matched_file_verified_percentage": 30.8,
+    "additional_verified_downloads": 0
+  }
+}

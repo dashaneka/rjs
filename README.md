@@ -96,6 +96,8 @@ The optional standard-library benchmark runner compares paired runs with yt-dlp.
 
 See the [measured results and coverage limits](benchmarks/VERIFICATION.md) for the current four-post comparison and the local verification details.
 
+The [remaining-site investigation](benchmarks/REMAINING.md) records the unsuccessful cases separately, plus a local corpus runner and a tested xhamster parsing fix. Attempting a platform does not count as proving its downloads work.
+
 ## Good to know
 
 Only download things you have the right to. Sites change often; if something breaks, open an issue with the link.

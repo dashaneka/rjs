@@ -13,7 +13,7 @@ use crate::error::fail;
 use crate::{Client, Media, MediaKind, Platform, Result};
 
 static INITIALS: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?s)window\.initials\s*=\s*(\{.+?\})\s*;\s*</script>").unwrap());
+    LazyLock::new(|| Regex::new(r"window\.initials\s*=\s*").unwrap());
 static CLOSED: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#"(?s)<div[^>]+id=["']videoClosed["'][^>]*>(.+?)</div>"#).unwrap()
 });
@@ -36,9 +36,7 @@ pub(super) async fn extract(client: &Client, url: &Url) -> Result<Vec<Media>> {
         let message = unescape_html(TAG.replace_all(&c[1], "").trim());
         return Err(fail(Platform::XHamster, message));
     }
-    let initials: Value = INITIALS
-        .captures(&page.html)
-        .and_then(|c| serde_json::from_str(&c[1]).ok())
+    let initials: Value = parse_initials(&page.html)
         .ok_or_else(|| fail(Platform::XHamster, "couldn't find the video on the page"))?;
 
     // The site's single-file MP4 links are refused by its servers, so only HLS is used.
@@ -68,6 +66,16 @@ pub(super) async fn extract(client: &Client, url: &Url) -> Result<Vec<Media>> {
         duration: number(video, "/duration").map(|s| s as f64),
         formats: with_referer(formats, &referer),
     }])
+}
+
+fn parse_initials(html: &str) -> Option<Value> {
+    INITIALS.find_iter(html).find_map(|m| {
+        serde_json::Deserializer::from_str(&html[m.end()..])
+            .into_iter::<Value>()
+            .next()?
+            .ok()
+            .filter(Value::is_object)
+    })
 }
 
 /// Playlist links in the order worth trying: H.264 before other codecs, which
@@ -223,6 +231,13 @@ mod tests {
     use serde_json::json;
 
     use super::*;
+
+    #[test]
+    fn reads_initials_followed_by_other_script_statements() {
+        let html = r#"<script>window.initials = {"videoModel":{"title":"a }; b"},"xplayerSettings":{"sources":{}}}; window.ready = true;</script>"#;
+        let initials = parse_initials(html).unwrap();
+        assert_eq!(initials["videoModel"]["title"], "a }; b");
+    }
 
     /// Made with yt-dlp's decoder from "https://video.example/abc/1080p.m3u8".
     const SAMPLES: [&str; 7] = [
